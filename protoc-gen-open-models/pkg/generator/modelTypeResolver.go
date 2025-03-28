@@ -160,6 +160,9 @@ func resolveModelType(imports ImportMap, field sourceinfo.FieldInfo) (
 			}
 
 			primitiveType := WellKnownTypesMap[typeName]
+			if primitiveType == "JSONObject" {
+				imports.AddImport("@furo/open-models/dist/index", "JSONObject", "")
+			}
 			if typeName == "Empty" {
 				imports.AddImport("@furo/open-models/dist/index", "EMPTY", "")
 				return "EMPTY", "__TypeSetter", primitiveType, "EMPTY", "", "EMPTY"
