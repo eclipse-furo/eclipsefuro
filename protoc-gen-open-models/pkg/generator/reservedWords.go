@@ -1,10 +1,12 @@
 package generator
 
 var ReservedWords = map[string]struct{}{
-	"Object": {},
-	"Any":    {},
-	"String": {},
-	"Number": {},
+	"JSONObject": {},
+	"Object":     {},
+	"Any":        {},
+	"String":     {},
+	"Number":     {},
+	"Date":       {},
 }
 
 func PrefixReservedWords(className string) string {

@@ -19,7 +19,7 @@ var WellKnownTypesMap = map[string]string{
 	"UInt64Value": "number",
 	"Timestamp":   "string",
 	"Duration":    "string",
-	"Struct":      "object",
+	"Struct":      "JSONObject",
 	"Empty":       "Record<string, never>",
 	"FieldMask":   "string[]",
 }
