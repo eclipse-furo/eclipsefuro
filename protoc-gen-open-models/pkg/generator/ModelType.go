@@ -212,7 +212,8 @@ func prepareModelType(message *sourceinfo.MessageInfo, imports ImportMap, si sou
 
 				switch d := field.OpenApiProperties.Default.Oneof.(type) {
 				case *openapi_v3.DefaultType_String_:
-					if json.Valid([]byte(d.String_)) {
+					// check for json object or array
+					if (strings.Contains(d.String_, "[") || strings.Contains(d.String_, "{") || d.String_ == "null") && json.Valid([]byte(d.String_)) {
 						defaultValuesMap[field.Field.GetJsonName()] = d.String_
 					} else {
 						defaultValuesMap[field.Field.GetJsonName()] = "\"" + d.String_ + "\""

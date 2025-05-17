@@ -12,16 +12,52 @@ var WellKnownTypesMap = map[string]string{
 	"BytesValue":  "string",
 	"BoolValue":   "boolean",
 	"Int32Value":  "number",
-	"Int64Value":  "number",
+	"Int64Value":  "string",
 	"FloatValue":  "number",
 	"DoubleValue": "number",
 	"UInt32Value": "number",
-	"UInt64Value": "number",
+	"UInt64Value": "string",
 	"Timestamp":   "string",
 	"Duration":    "string",
 	"Struct":      "JSONObject",
 	"Empty":       "Record<string, never>",
 	"FieldMask":   "string[]",
+}
+
+var ModelWellKnownTypesMap = map[string]string{
+	"StringValue": "string",
+	"BytesValue":  "string",
+	"BoolValue":   "boolean",
+	"Int32Value":  "number",
+	"Int64Value":  "bigint",
+	"FloatValue":  "number",
+	"DoubleValue": "number",
+	"UInt32Value": "number",
+	"UInt64Value": "bigint",
+	"Timestamp":   "string",
+	"Duration":    "string",
+	"Struct":      "JSONObject",
+	"Empty":       "Record<string, never>",
+	"FieldMask":   "string[]",
+}
+
+// https://protobuf.dev/programming-guides/json/
+var ModelPrimitivesMap = map[string]string{
+	"TYPE_STRING":   "string",
+	"TYPE_BYTES":    "string",
+	"TYPE_BOOL":     "boolean",
+	"TYPE_INT32":    "number",
+	"TYPE_INT64":    "bigint",
+	"TYPE_DOUBLE":   "number",
+	"TYPE_FLOAT":    "number",
+	"TYPE_UINT32":   "number",
+	"TYPE_UINT64":   "bigint",
+	"TYPE_FIXED32":  "number",
+	"TYPE_FIXED64":  "bigint",
+	"TYPE_SFIXED32": "number",
+	"TYPE_SFIXED64": "bigint",
+	"TYPE_SINT32":   "number",
+	"TYPE_SINT64":   "bigint",
 }
 
 var ModelTypesMap = map[string]string{
@@ -49,7 +85,7 @@ func resolveModelType(imports ImportMap, field sourceinfo.FieldInfo) (
 	fieldType := field.Field.Type.String()
 
 	if t, ok := ModelTypesMap[fieldType]; ok {
-		primitiveType := PrimitivesMap[fieldType]
+		primitiveType := ModelPrimitivesMap[fieldType]
 		if field.Field.Label.String() == "LABEL_REPEATED" {
 			imports.AddImport("@furo/open-models/dist/index", "ARRAY", "")
 			imports.AddImport("@furo/open-models/dist/index", ModelTypesMap[fieldType], "")
@@ -96,7 +132,7 @@ func resolveModelType(imports ImportMap, field sourceinfo.FieldInfo) (
 									return "ANY", "__TypeSetter", "IAny", "ANY", "", "ANY"
 								}
 
-								primitiveMapType := WellKnownTypesMap[typeName]
+								primitiveMapType := ModelWellKnownTypesMap[typeName]
 
 								if typeName == "Empty" {
 									imports.AddImport("@furo/open-models/dist/index", "EMPTY", "")
@@ -106,12 +142,12 @@ func resolveModelType(imports ImportMap, field sourceinfo.FieldInfo) (
 								// for model types return "MAP<string, STRING, string>;"
 								imports.AddImport("@furo/open-models/dist/index", "MAP", "")
 								imports.AddImport("@furo/open-models/dist/index", ModelTypesMap[primitiveMapType], "")
-								return "MAP<string," + ModelTypesMap[primitiveMapType] + "," + PrimitivesMap[primitiveMapType] + ">",
+								return "MAP<string," + ModelTypesMap[primitiveMapType] + "," + ModelPrimitivesMap[primitiveMapType] + ">",
 									"__TypeSetter",
-									"{ [key: string]: " + PrimitivesMap[primitiveMapType] + " }",
-									"MAP<string," + ModelTypesMap[primitiveMapType] + "," + PrimitivesMap[primitiveMapType] + ">",
+									"{ [key: string]: " + ModelPrimitivesMap[primitiveMapType] + " }",
+									"MAP<string," + ModelTypesMap[primitiveMapType] + "," + ModelPrimitivesMap[primitiveMapType] + ">",
 									ModelTypesMap[primitiveMapType],
-									"MAP<string," + ModelTypesMap[primitiveMapType] + "," + PrimitivesMap[primitiveMapType] + ">"
+									"MAP<string," + ModelTypesMap[primitiveMapType] + "," + ModelPrimitivesMap[primitiveMapType] + ">"
 							}
 
 							fieldPackage := strings.Split("."+field.Package, ".")
@@ -133,12 +169,12 @@ func resolveModelType(imports ImportMap, field sourceinfo.FieldInfo) (
 					// for model types return "MAP<string, STRING, string>;"
 					imports.AddImport("@furo/open-models/dist/index", "MAP", "")
 					imports.AddImport("@furo/open-models/dist/index", ModelTypesMap[maptype], "")
-					return "MAP<string," + ModelTypesMap[maptype] + "," + PrimitivesMap[maptype] + ">",
+					return "MAP<string," + ModelTypesMap[maptype] + "," + ModelPrimitivesMap[maptype] + ">",
 						"__TypeSetter",
-						"{ [key: string]: " + PrimitivesMap[maptype] + " }",
-						"MAP<string," + ModelTypesMap[maptype] + "," + PrimitivesMap[maptype] + ">",
+						"{ [key: string]: " + ModelPrimitivesMap[maptype] + " }",
+						"MAP<string," + ModelTypesMap[maptype] + "," + ModelPrimitivesMap[maptype] + ">",
 						ModelTypesMap[maptype],
-						"MAP<string," + ModelTypesMap[maptype] + "," + PrimitivesMap[maptype] + ">"
+						"MAP<string," + ModelTypesMap[maptype] + "," + ModelPrimitivesMap[maptype] + ">"
 
 				}
 			}
@@ -159,7 +195,7 @@ func resolveModelType(imports ImportMap, field sourceinfo.FieldInfo) (
 				return "ANY", "__TypeSetter", "IAny", "ANY", "", "ANY"
 			}
 
-			primitiveType := WellKnownTypesMap[typeName]
+			primitiveType := ModelWellKnownTypesMap[typeName]
 			if primitiveType == "JSONObject" {
 				imports.AddImport("@furo/open-models/dist/index", "JSONObject", "")
 			}

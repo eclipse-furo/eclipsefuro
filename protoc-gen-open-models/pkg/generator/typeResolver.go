@@ -7,22 +7,23 @@ import (
 	"strings"
 )
 
+// https://protobuf.dev/programming-guides/json/
 var PrimitivesMap = map[string]string{
 	"TYPE_STRING":   "string",
 	"TYPE_BYTES":    "string",
 	"TYPE_BOOL":     "boolean",
 	"TYPE_INT32":    "number",
-	"TYPE_INT64":    "number",
+	"TYPE_INT64":    "string",
 	"TYPE_DOUBLE":   "number",
 	"TYPE_FLOAT":    "number",
 	"TYPE_UINT32":   "number",
-	"TYPE_UINT64":   "number",
+	"TYPE_UINT64":   "string",
 	"TYPE_FIXED32":  "number",
-	"TYPE_FIXED64":  "number",
+	"TYPE_FIXED64":  "string",
 	"TYPE_SFIXED32": "number",
-	"TYPE_SFIXED64": "number",
+	"TYPE_SFIXED64": "string",
 	"TYPE_SINT32":   "number",
-	"TYPE_SINT64":   "number",
+	"TYPE_SINT64":   "string",
 }
 
 func resolveInterfaceType(imports ImportMap, field sourceinfo.FieldInfo, kindPrefix string) string {
