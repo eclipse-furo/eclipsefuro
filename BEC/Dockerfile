@@ -1,21 +1,23 @@
-FROM golang:1.20-alpine3.17
+FROM golang:1.24-alpine
 
 ENV SIMPLEGENEREATOR_VERSION=1.0.1
 ENV FURO_VERSION=1.39.1
-ENV GATEWAY_VERSION=2.11.1
-ENV GEN_GO_VERSION=1.28.1
-ENV GEN_GO_GRPC_VERSION=1.2.0
+ENV GATEWAY_VERSION=2.27.1
+ENV PROTOC_GEN_OPENMODELS_VERSION=1.44.0
+ENV PROTOC_GEN_OPENAPI_VERSION=0.7.0
+ENV GEN_GO_VERSION=1.36.6
+ENV GEN_GO_GRPC_VERSION=1.5.1
 ENV YQ_VERSION=4.25.2
-ENV BUF_VERSION=1.7.0
-ENV PROTOC_VERSION=23.2
-ENV GOBIN $GOPATH/bin
+ENV BUF_VERSION=1.35.0
+ENV PROTOC_VERSION=25.3
+ENV GOBIN=$GOPATH/bin
 ENV PATH="$PATH:$GOPATH/bin"
 ENV PATH="/usr/local/sbin:$PATH"
 ENV PS1="\e[0;34mフロー BEC \t# \e[m "
 ENV GOPRIVATE=github.com/theNorstroem
 
 # Install ssh client and git
-RUN apk add --no-cache bash openssh-client git curl wget ca-certificates openssh jq
+RUN apk add --no-cache bash openssh-client git curl wget ca-certificates openssh jq nodejs npm
 
 # Download public key for github.com
 RUN mkdir -p -m 0600 ~/.ssh && ssh-keyscan github.com >> ~/.ssh/known_hosts
@@ -34,8 +36,13 @@ RUN set -eux; \
 # install the tools
 RUN set -eux; \
      GO111MODULE=on go install \
-     github.com/grpc-ecosystem/grpc-gateway/v2/protoc-gen-grpc-gateway@v$GATEWAY_VERSION \
-     github.com/grpc-ecosystem/grpc-gateway/v2/protoc-gen-openapiv2@v$GATEWAY_VERSION
+     github.com/google/gnostic/cmd/protoc-gen-openapi@v$PROTOC_GEN_OPENAPI_VERSION
+
+# install the tools
+RUN set -eux; \
+     GO111MODULE=on go install \
+     github.com/eclipse-furo/eclipsefuro/protoc-gen-open-models@v$PROTOC_GEN_OPENMODELS_VERSION
+
 
 # install the tools
 RUN set -eux; \

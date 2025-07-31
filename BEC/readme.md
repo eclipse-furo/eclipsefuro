@@ -30,13 +30,17 @@ Please look at the dockerfile if you are interested in the versions.
 - protoc-gen-openapiv2
 - protoc-gen-go
 - protoc-gen-go-grpc
+- protoc-gen-openapi (github.com/google/gnostic)
 - simple-generator
 - furo
 - furoc
 - buf
 - protoc-gen-buf-breaking
 - protoc-gen-buf-lint
-
+- protoc-gen-open-models
+- nodejs
+- npm
+- openssh
 - [jq](https://stedolan.github.io/jq/)
 - [yq](https://mikefarah.gitbook.io/yq/commands/read)
 
