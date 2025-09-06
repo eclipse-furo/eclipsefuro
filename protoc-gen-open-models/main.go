@@ -5,15 +5,16 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/bufbuild/protoplugin"
-	"github.com/eclipse-furo/eclipsefuro/protoc-gen-open-models/pkg/generator"
 	"io"
 	"log"
 	"os"
 	"os/exec"
+
+	"github.com/bufbuild/protoplugin"
+	"github.com/eclipse-furo/eclipsefuro/protoc-gen-open-models/pkg/generator"
 )
 
-const version = "1.43.1"
+const version = "1.43.2"
 
 func main() {
 	const debugMode = false
