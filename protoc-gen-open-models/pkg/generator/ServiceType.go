@@ -3,12 +3,13 @@ package generator
 import (
 	"bytes"
 	"errors"
-	"github.com/eclipse-furo/eclipsefuro/protoc-gen-open-models/pkg/sourceinfo"
-	"github.com/iancoleman/strcase"
-	"google.golang.org/genproto/googleapis/api/annotations"
 	"path/filepath"
 	"strings"
 	"text/template"
+
+	"github.com/eclipse-furo/eclipsefuro/protoc-gen-open-models/pkg/sourceinfo"
+	"github.com/iancoleman/strcase"
+	"google.golang.org/genproto/googleapis/api/annotations"
 )
 
 type ServiceType struct {
@@ -27,6 +28,8 @@ type ServiceMethods struct {
 	Body                string // "" | "*" | "data"
 	LeadingComments     []string
 	TrailingComment     string
+	CleintStreaming     bool
+	ServerStreaming     bool
 }
 
 var ServiceTemplate = `{{if .LeadingComments}}{{range $i, $commentLine := .LeadingComments}}
@@ -36,7 +39,7 @@ export class {{.Name}} {
 
 {{range $i, $method := .Methods}}{{if .LeadingComments}}{{range $i, $commentLine := .LeadingComments}}
   // {{$commentLine}}{{end}}{{end}}
-  public {{.Name}}: Fetcher<{{.RequestTypeLiteral}},{{.ResponseTypeLiteral}}> = new Fetcher<{{.RequestTypeLiteral}},{{.ResponseTypeLiteral}}>(
+  public {{.Name}}: Fetcher<{{.RequestTypeLiteral}},{{if .ServerStreaming}}AsyncIterable<{{.ResponseTypeLiteral}}> | {{end}}{{.ResponseTypeLiteral}}> = new Fetcher<{{.RequestTypeLiteral}},{{if .ServerStreaming}}AsyncIterable<{{.ResponseTypeLiteral}}> | {{end}}{{.ResponseTypeLiteral}}>(
     API_OPTIONS,
     '{{.Verb}}',
     '{{.Path}}',{{if .Body}}
@@ -66,6 +69,7 @@ func prepareServiceType(service sourceinfo.ServiceInfo, imports ImportMap) Servi
 
 	imports.AddImport("@furo/open-models/dist/Fetcher", "Fetcher", "")
 
+	// todo: implement fallback, when package is not set
 	pathSegments := strings.Split(service.Package, ".")
 	for i, _ := range pathSegments {
 		pathSegments[i] = ".."
@@ -94,6 +98,8 @@ func prepareServiceType(service sourceinfo.ServiceInfo, imports ImportMap) Servi
 				Body:                cleanFieldName(method.HttpRule.ApiOptions.GetBody()),
 				LeadingComments:     multilineComment(method.Info.GetLeadingComments()),
 				TrailingComment:     method.Info.GetTrailingComments(),
+				CleintStreaming:     method.Method.ClientStreaming != nil,
+				ServerStreaming:     method.Method.ServerStreaming != nil,
 			}
 
 			serviceType.Methods = append(serviceType.Methods, serviceMethods)

@@ -14,6 +14,6 @@ Build multi arch
     
     docker buildx build \
       --platform linux/amd64,linux/arm64 \
-      -t thenorstroem/furo-bec:v1.40.1 \
+      -t thenorstroem/furo-bec:v1.40.2 \
       --push .
 ```
