@@ -1,7 +1,5 @@
 FROM golang:1.24-alpine
 
-ENV SIMPLEGENEREATOR_VERSION=1.0.1
-ENV FURO_VERSION=1.39.1
 ENV GATEWAY_VERSION=2.27.1
 ENV PROTOC_GEN_OPENMODELS_VERSION=1.45.0
 ENV PROTOC_GEN_OPENAPI_VERSION=0.7.0
@@ -14,7 +12,6 @@ ENV GOBIN=$GOPATH/bin
 ENV PATH="$PATH:$GOPATH/bin"
 ENV PATH="/usr/local/sbin:$PATH"
 ENV PS1="\e[0;34mフロー BEC \t# \e[m "
-ENV GOPRIVATE=github.com/theNorstroem
 
 # Install ssh client and git
 RUN apk add --no-cache bash openssh-client git curl wget ca-certificates openssh jq nodejs npm
@@ -45,22 +42,6 @@ RUN set -eux; \
 
 
 # install the tools
-RUN set -eux; \
-    GO111MODULE=on go install \
-    github.com/eclipse/eclipsefuro/furo@v$FURO_VERSION \
-    github.com/eclipse/eclipsefuro/furoc@v$FURO_VERSION \
-    github.com/eclipse/eclipsefuro/furops@v$FURO_VERSION
-
-RUN set -eux; \
-    go install \
-    github.com/eclipse/eclipsefuro/protoc-gen-furo-muspecs@v$FURO_VERSION \
-    github.com/eclipse/eclipsefuro/protoc-gen-furo-specs@v$FURO_VERSION
-
-
-RUN set -eux; \
-    GO111MODULE=on go install \
-    github.com/theNorstroem/simple-generator@v$SIMPLEGENEREATOR_VERSION
-
 
 RUN set -eux; \
     GO111MODULE=on go install \

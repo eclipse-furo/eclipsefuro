@@ -1,3 +1,0 @@
-patternDirs:
- - ./patterns
-specExportFile: ./specs/export.yaml

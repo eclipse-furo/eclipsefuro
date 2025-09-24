@@ -1,7 +1,0 @@
-- enum: 'helloworld.Corpus #comment before'
-  values:
-    UNKNOWN: 0
-    STARTED: 1
-    RUNNING: 1
-  target: enums.proto
-  alias: true
