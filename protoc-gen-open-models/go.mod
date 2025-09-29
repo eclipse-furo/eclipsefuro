@@ -1,6 +1,6 @@
 module github.com/eclipse-furo/eclipsefuro/protoc-gen-open-models
 
-go 1.21
+go 1.24
 
 require (
 	github.com/bufbuild/protoplugin v0.0.0-20240911180120-7bb73e41a54a
