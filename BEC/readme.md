@@ -44,7 +44,6 @@ Please look at the dockerfile if you are interested in the versions.
 - [jq](https://stedolan.github.io/jq/)
 - [yq](https://mikefarah.gitbook.io/yq/commands/read)
 
-> No furoc generators are installed. Add the needed furoc-gen-XXX to the `.furobecrc` file.
 
 ## .furobecrc
 Make settings for your project in this file. Maybe you need a $GOPRIVATE or other Env vars.

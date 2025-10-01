@@ -1,0 +1,1 @@
+The tests are done in https://github.com/eclipse-furo/eclipsefuro-web/tree/main/packages/furo-open-models/test
