@@ -142,7 +142,7 @@ func resolveServiceType(typeName string, service sourceinfo.ServiceInfo, imports
 	if !strings.HasPrefix(rel, "..") {
 		rel = "./" + rel
 	}
-	imports.AddImport(rel, "I"+PrefixReservedWords(classNameIn), "I"+fullQualifiedTypeName(typeName))
+	imports.AddImport(rel, "type I"+PrefixReservedWords(classNameIn), "I"+fullQualifiedTypeName(typeName))
 	return "I" + fullQualifiedTypeName(typeName)
 }
 

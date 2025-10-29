@@ -1,10 +1,11 @@
 package generator
 
 import (
-	"github.com/eclipse-furo/eclipsefuro/protoc-gen-open-models/pkg/sourceinfo"
-	"google.golang.org/protobuf/types/descriptorpb"
 	"path/filepath"
 	"strings"
+
+	"github.com/eclipse-furo/eclipsefuro/protoc-gen-open-models/pkg/sourceinfo"
+	"google.golang.org/protobuf/types/descriptorpb"
 )
 
 var WellKnownTypesMap = map[string]string{

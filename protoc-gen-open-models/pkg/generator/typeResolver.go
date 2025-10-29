@@ -1,10 +1,11 @@
 package generator
 
 import (
-	"github.com/eclipse-furo/eclipsefuro/protoc-gen-open-models/pkg/sourceinfo"
-	"google.golang.org/protobuf/types/descriptorpb"
 	"path/filepath"
 	"strings"
+
+	"github.com/eclipse-furo/eclipsefuro/protoc-gen-open-models/pkg/sourceinfo"
+	"google.golang.org/protobuf/types/descriptorpb"
 )
 
 // https://protobuf.dev/programming-guides/json/
@@ -82,7 +83,7 @@ func resolveInterfaceType(imports ImportMap, field sourceinfo.FieldInfo, kindPre
 							if !strings.HasPrefix(rel, "..") {
 								rel = "./" + rel
 							}
-							imports.AddImport(rel, kindPrefix+PrefixReservedWords(className), kindPrefix+fullQualifiedName(maptype, ""))
+							imports.AddImport(rel, "type "+kindPrefix+PrefixReservedWords(className), kindPrefix+fullQualifiedName(maptype, ""))
 							return "{ [key: string]: " + kindPrefix + fullQualifiedName(maptype, "") + " }"
 						}
 					}
@@ -132,7 +133,7 @@ func resolveInterfaceType(imports ImportMap, field sourceinfo.FieldInfo, kindPre
 			// add imports for Transport, Literal and Model
 			// do not add import for the same file (direct recursion types)
 			if field.Message.GetName() != importFile {
-				imports.AddImport("./"+importFile, kindPrefix+PrefixReservedWords(className), kindPrefix+t)
+				imports.AddImport("./"+importFile, "type "+kindPrefix+PrefixReservedWords(className), kindPrefix+t)
 			} else {
 				// repeated recursion like
 				if field.Field.Label.String() == "LABEL_REPEATED" {
@@ -158,7 +159,7 @@ func resolveInterfaceType(imports ImportMap, field sourceinfo.FieldInfo, kindPre
 			// do not add import for the same file (direct recursion types)
 			t = fullQualifiedName(t, "")
 			if field.Message.GetName() != importFile {
-				imports.AddImport(rel, kindPrefix+PrefixReservedWords(className), kindPrefix+t)
+				imports.AddImport(rel, "type "+kindPrefix+PrefixReservedWords(className), kindPrefix+t)
 			}
 			if field.Field.Label.String() == "LABEL_REPEATED" {
 				return kindPrefix + t + "[]"

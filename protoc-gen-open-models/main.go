@@ -14,7 +14,7 @@ import (
 	"github.com/eclipse-furo/eclipsefuro/protoc-gen-open-models/pkg/generator"
 )
 
-const version = "1.46.0"
+const version = "1.47.0"
 
 func main() {
 	const debugMode = false
