@@ -4,13 +4,14 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"slices"
+	"strings"
+	"text/template"
+
 	"github.com/bufbuild/protoplugin"
 	"github.com/eclipse-furo/eclipsefuro/protoc-gen-open-models/pkg/sourceinfo"
 	openapi_v3 "github.com/google/gnostic/openapiv3"
 	"github.com/iancoleman/strcase"
-	"slices"
-	"strings"
-	"text/template"
 )
 
 type ModelType struct {
@@ -65,6 +66,21 @@ type FieldConstraints struct {
 	Required         bool    `json:"required,omitempty"`
 }
 
+func buildDescriptionField(lines []string) string {
+	s := strings.Join(lines, "\n")
+
+	// Normalize newlines first
+	s = strings.ReplaceAll(s, "\r\n", "\n")
+	s = strings.ReplaceAll(s, "\r", "")
+
+	// Escape backslash first to avoid double-escaping
+	s = strings.ReplaceAll(s, `\`, `\\`)
+	s = strings.ReplaceAll(s, `'`, `\'`)
+	s = strings.ReplaceAll(s, "\n", `\n`)
+
+	return strings.TrimSpace(s)
+}
+
 var ModelTypeTemplate = `/**
  * {{.Name}} {{if .LeadingComments}}{{range $i, $commentLine := .LeadingComments}}
  * {{$commentLine}}{{end}}{{end}}
@@ -84,6 +100,7 @@ export class {{.Name}} extends FieldNode {
   ) {
     super(undefined, parent, parentAttributeName);
     this.__meta.typeName = '{{.MetaTypeName}}';
+    this.__meta.description = '{{.Name}}{{if .LeadingComments}} {{desc .LeadingComments}}{{end}}';
 
     this.__meta.nodeFields = [
 {{- $first := true }}{{range .Fields}}{{if not $first}}, {{else}}{{$first = false}}{{end}}
@@ -94,6 +111,7 @@ export class {{.Name}} extends FieldNode {
         {{- if ne .MAPValueConstructor ""}}
         ValueConstructor: {{.MAPValueConstructor}},{{end}}{{if .Constraints}}
         constraints: {{.Constraints}},{{end}}
+        description: '{{desc .LeadingComments}}'
       }{{end}}
     ];
 
@@ -160,7 +178,11 @@ Registry.register('{{.MetaTypeName}}', {{.Name}});
 
 func (r *ModelType) Render() string {
 
-	t, err := template.New("ModelType").Parse(ModelTypeTemplate)
+	t, err := template.New("ModelType").
+		Funcs(template.FuncMap{
+			"desc": buildDescriptionField,
+		}).
+		Parse(ModelTypeTemplate)
 	if err != nil {
 		panic(err)
 	}
