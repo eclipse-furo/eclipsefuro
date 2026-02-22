@@ -393,9 +393,19 @@ func isWellKnownType(tn string) bool {
 }
 
 func deepRecursionCheck(typename string) bool {
-	return deepRecursionCheckRecursion(typename, typename)
+	return deepRecursionCheckRecursion(typename, typename, map[string]bool{})
 }
-func deepRecursionCheckRecursion(startAt string, lookFor string) bool {
+func deepRecursionCheckRecursion(startAt string, lookFor string, visited map[string]bool) bool {
+
+	if startAt == "" || lookFor == "" {
+		return false
+	}
+
+	// Break cycles (A -> B -> A, or longer ones)
+	if visited[startAt] {
+		return false
+	}
+	visited[startAt] = true
 
 	for _, info := range allTypes[startAt].FieldInfos {
 		if info.Field.GetTypeName() == lookFor {
@@ -403,7 +413,7 @@ func deepRecursionCheckRecursion(startAt string, lookFor string) bool {
 		}
 
 		if info.Field.Type.String() == "TYPE_MESSAGE" && info.Field.Label.String() != "LABEL_REPEATED" {
-			return deepRecursionCheckRecursion(info.Field.GetTypeName(), lookFor)
+			return deepRecursionCheckRecursion(info.Field.GetTypeName(), lookFor, visited)
 		}
 
 	}
