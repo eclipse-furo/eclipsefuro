@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "google.protobuf.ServiceDescriptorProto",
+  "type": "object",
+  "description": "Describes a service.ServiceDescriptorProto",
+  "properties": {
+    "method": {
+      "type": "array",
+      "items": {
+        "$ref": "google.protobuf.MethodDescriptorProto"
+      }
+    },
+    "name": {
+      "type": "string"
+    },
+    "options": {
+      "$ref": "google.protobuf.ServiceOptions"
+    }
+  }
+}

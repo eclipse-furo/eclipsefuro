@@ -1,0 +1,11 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "blueberry.tus.GetUploadStatusResponse",
+  "type": "object",
+  "description": "/ Response with the current state of the upload.GetUploadStatusResponse",
+  "properties": {
+    "upload": {
+      "$ref": "blueberry.tus.Upload"
+    }
+  }
+}

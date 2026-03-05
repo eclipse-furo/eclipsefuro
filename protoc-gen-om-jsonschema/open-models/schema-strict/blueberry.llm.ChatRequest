@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "blueberry.llm.ChatRequest",
+  "type": "object",
+  "description": "ChatRequest contains the full conversation payload for chat completion.\n API Reference: https://platform.openai.com/docs/api-reference/chat/createChatRequest",
+  "properties": {
+    "keepAlive": {
+      "type": "string",
+      "description": "How long the model should stay loaded after the request completes.\n Format follows Go's `time.ParseDuration` – e.g. \"5m\", \"30s\".\n Default: \"5m\"."
+    },
+    "messages": {
+      "type": "array",
+      "description": "History of messages in chronological order.",
+      "items": {
+        "$ref": "blueberry.llm.Message"
+      }
+    },
+    "model": {
+      "type": "string",
+      "description": "Model name."
+    },
+    "options": {
+      "$ref": "google.protobuf.Struct",
+      "description": "Optional generation options. Common keys:\n   - \"temperature\": 0.0 to 1.0\n   - \"top_p\": 0.0 to 1.0\n   - \"max_new_tokens\": maximum tokens to generate\n   - \"stop\": comma-separated stop sequences\n Using Struct preserves numeric/boolean types (e.g., temperature: 0)."
+    },
+    "reasoningEffort": {
+      "type": "string",
+      "description": "Constrains effort on reasoning for reasoning models.\n Currently supported values are: \"minimal\", \"low\", \"medium\", and \"high\".\n Reducing reasoning effort can result in faster responses and fewer tokens.\n Note: The gpt-5-pro model defaults to (and only supports) high reasoning effort."
+    },
+    "responseFormat": {
+      "$ref": "google.protobuf.Value",
+      "description": "The format to return a response in.\n Uses google.protobuf.Value to support multiple object variants.\n\n Setting to { \"type\": \"json_schema\", \"json_schema\": {...} } enables\n Structured Outputs which ensures the model will match your supplied JSON schema.\n\n Setting to { \"type\": \"json_object\" } enables the older JSON mode,\n which ensures the message the model generates is valid JSON.\n Using json_schema is preferred for models that support it."
+    },
+    "stream": {
+      "type": "boolean",
+      "description": "Stream the response if true. If false, the server returns a single final chunk."
+    },
+    "streamOptions": {
+      "$ref": "blueberry.llm.StreamOptions",
+      "description": "Options for streaming response. Only set this when stream is true."
+    },
+    "think": {
+      "type": "boolean",
+      "description": "For thinking models: should the model think before responding?\n Only used for Ollama."
+    },
+    "tools": {
+      "type": "array",
+      "description": "Optional tools the model may call. When `stream` is true, the\n server may send partial tool-call information in intermediate\n responses. Tools are only honored when the server is configured\n to allow function calling (see server docs for details).",
+      "items": {
+        "$ref": "blueberry.llm.Tool"
+      }
+    }
+  }
+}

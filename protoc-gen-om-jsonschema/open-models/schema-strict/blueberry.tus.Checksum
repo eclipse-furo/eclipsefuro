@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "blueberry.tus.Checksum",
+  "type": "object",
+  "description": "/ Checksum information.\n/\n/ In TUS v1.0.0 the checksum header can contain an algorithm name\n/ and a base64‑encoded hash.  The protobuf representation uses a\n/ simple map (`algorithm → value`).Checksum",
+  "properties": {
+    "entries": {
+      "$ref": "blueberry.tus.Checksum.EntriesEntry",
+      "description": "algorithm → base64‑encoded hash"
+    }
+  }
+}

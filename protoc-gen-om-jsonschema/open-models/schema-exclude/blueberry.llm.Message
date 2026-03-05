@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "blueberry.llm.Message",
+  "type": "object",
+  "description": "Message represents a single turn in a conversation.Message",
+  "properties": {
+    "content": {
+      "type": "string",
+      "description": "Content of the message. For role \"assistant\" this may be a partial\n text chunk; for role \"tool\" it is the tool-response JSON."
+    },
+    "images": {
+      "type": "array",
+      "description": "Optional images (binary data for multimodal models).",
+      "items": {
+        "type": "string"
+      }
+    },
+    "reasoning": {
+      "type": "string",
+      "description": "Optional \"thinking\" text from reasoning models."
+    },
+    "role": {
+      "type": "string",
+      "description": "Role of the sender: \"user\", \"assistant\", \"system\", or \"tool\"."
+    },
+    "toolCallId": {
+      "type": "string",
+      "description": "Tool call ID that this message is responding to.\n You should set this when role is \"tool\"."
+    },
+    "toolCalls": {
+      "type": "array",
+      "description": "Tool calls that the model wants to execute. Populated only when\n role=\"assistant\" and the model decides to invoke a tool.\n Multiple calls may be present in a single chunk.",
+      "items": {
+        "$ref": "blueberry.llm.ToolCall"
+      }
+    },
+    "toolName": {
+      "type": "string",
+      "description": "Optional name of the tool that was invoked."
+    }
+  }
+}

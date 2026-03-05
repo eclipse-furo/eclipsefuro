@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "openapi.v3.ExampleOrReference",
+  "type": "object",
+  "description": "ONEOF[oneof]: Set exactly ONE of [example, reference]",
+  "properties": {
+    "example": {
+      "$ref": "openapi.v3.Example"
+    },
+    "reference": {
+      "$ref": "openapi.v3.Reference"
+    }
+  }
+}

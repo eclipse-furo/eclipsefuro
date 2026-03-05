@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "openapi.v3.HeaderOrReference",
+  "type": "object",
+  "description": "ONEOF[oneof]: Set exactly ONE of [header, reference]",
+  "properties": {
+    "header": {
+      "$ref": "openapi.v3.Header"
+    },
+    "reference": {
+      "$ref": "openapi.v3.Reference"
+    }
+  }
+}

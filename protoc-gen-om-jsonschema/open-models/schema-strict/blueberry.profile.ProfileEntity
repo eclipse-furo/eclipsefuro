@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "blueberry.profile.ProfileEntity",
+  "type": "object",
+  "description": "Entitycontainer which holds a profile.ProfileProfileEntity",
+  "properties": {
+    "data": {
+      "$ref": "blueberry.profile.Profile",
+      "description": "the data contains a profile.Profile"
+    },
+    "links": {
+      "type": "array",
+      "description": "the Hateoas links",
+      "items": {
+        "$ref": "furo.Link"
+      }
+    }
+  }
+}

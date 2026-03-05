@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "blueberry.profile.ListFavoritesProfileRequest",
+  "type": "object",
+  "description": "request message for ListFavoritesProfileListFavoritesProfileRequest",
+  "properties": {
+    "body": {
+      "$ref": "google.protobuf.Empty",
+      "description": "Body with google.protobuf.Empty"
+    },
+    "obt": {
+      "type": "string",
+      "description": "Object type, use * for all"
+    },
+    "page": {
+      "type": "integer",
+      "description": "Use this field to specify page to display.",
+      "minimum": 0
+    },
+    "pageSize": {
+      "type": "integer",
+      "description": "Define the size of a page.",
+      "minimum": 0
+    }
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "blueberry.tus.UploadChunkResponse",
+  "type": "object",
+  "description": "/ Response after a chunk is appended – returns the updated Upload.UploadChunkResponse",
+  "properties": {
+    "upload": {
+      "$ref": "blueberry.tus.Upload"
+    }
+  }
+}

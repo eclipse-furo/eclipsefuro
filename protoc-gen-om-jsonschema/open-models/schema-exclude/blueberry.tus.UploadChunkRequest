@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "blueberry.tus.UploadChunkRequest",
+  "type": "object",
+  "description": "/ Request to upload a chunk of data (HTTP PATCH).UploadChunkRequest",
+  "properties": {
+    "data": {
+      "type": "string",
+      "description": "Raw binary payload"
+    },
+    "offset": {
+      "type": "integer",
+      "description": "The offset at which this chunk starts"
+    },
+    "uploadId": {
+      "type": "string",
+      "description": "The ID of the upload being appended to"
+    }
+  }
+}

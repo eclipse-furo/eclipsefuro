@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "google.protobuf.ListValue",
+  "type": "object",
+  "description": "`ListValue` is a wrapper around a repeated field of values.\n\n The JSON representation for `ListValue` is JSON array.ListValue",
+  "properties": {
+    "values": {
+      "type": "array",
+      "description": "Repeated field of dynamically typed values.",
+      "items": {
+        "$ref": "google.protobuf.Value"
+      }
+    }
+  }
+}

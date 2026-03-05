@@ -1,0 +1,187 @@
+//  tus.proto – Protobuf definition of the TUS resumable‑upload protocol
+//  (c) 2025 – Open Source
+//
+//  This file contains the data types and gRPC service that correspond to
+//  the main HTTP endpoints defined by the TUS specification:
+//
+//      POST  /files          → CreateUpload
+//      PATCH /files/{id}    → UploadChunk
+//      HEAD  /files/{id}    → GetUploadStatus
+//      DELETE /files/{id}   → DeleteUpload
+//
+//  The messages also expose the protocol headers that are normally sent
+//  as HTTP headers (Tus-Resumable, Upload-Offset, etc.) in fields that
+//  are part of the Upload resource.
+//
+//  For large payloads the `UploadChunk` RPC can be changed to a client‑side
+//  streaming RPC (`rpc UploadChunk(stream Chunk) returns (Upload)`).
+
+syntax = "proto3";
+
+package blueberry.tus;
+
+import "google/protobuf/empty.proto";
+import "google/rpc/status.proto";
+import "google/api/annotations.proto";
+
+
+option go_package = "github.com/veith/blueberry-specs/pkg/pb/tus;tuspb";
+option java_package = "com.example.tus.proto";
+option java_outer_classname = "TusProto";
+
+/// ---------------------------------------------------------------------
+///  Utility types
+/// ---------------------------------------------------------------------
+
+/// Base64‑encoded metadata value.
+///
+/// In the HTTP protocol the `Upload-Metadata` header is a
+/// comma‑separated list of *key* and *base64‑encoded value* pairs.
+/// The protobuf representation uses a simple map.
+message Metadata {
+  map<string,string> entries = 1;   // key → base64‑encoded value
+}
+
+/// Checksum information.
+///
+/// In TUS v1.0.0 the checksum header can contain an algorithm name
+/// and a base64‑encoded hash.  The protobuf representation uses a
+/// simple map (`algorithm → value`).
+message Checksum {
+  map<string,string> entries = 1;   // algorithm → base64‑encoded hash
+}
+
+/// ---------------------------------------------------------------------
+///  Core resource – an Upload
+/// ---------------------------------------------------------------------
+
+/// Represents a single resumable upload.
+message Upload {
+  /// A server‑generated opaque identifier.  In the HTTP API this is
+  /// the value returned in the `Location` header.
+  string id = 1;
+
+  /// Total size of the file in bytes, as supplied by the client.
+  /// Use -1 to indicate an unknown length (chunked upload).
+  int64 total_length = 2;
+
+  /// Current offset in bytes that the server has received.
+  int64 offset = 3;
+
+  /// Optional checksum metadata (algorithm → base64 hash).
+  Checksum checksum = 4;
+
+  /// Arbitrary metadata attached to the upload.  Keys are ASCII
+  /// strings; values are base64‑encoded strings.
+  Metadata metadata = 5;
+
+  /// Flag that indicates whether the upload is complete.
+  bool complete = 6;
+
+  /// Unix‑epoch time (milliseconds) when the upload was created.
+  int64 created = 7;
+
+  /// Unix‑epoch time (milliseconds) of the last modification
+  /// (upload or status change).
+  int64 last_modified = 8;
+}
+
+/// ---------------------------------------------------------------------
+///  Requests / Responses
+/// ---------------------------------------------------------------------
+
+/// Request message for creating a new upload (HTTP POST).
+message CreateUploadRequest {
+  int64 total_length = 1;          // -1 if unknown
+  Metadata metadata = 2;
+  Checksum checksum = 3;
+}
+
+/// Response to CreateUpload (returns the newly created Upload).
+message CreateUploadResponse {
+  Upload upload = 1;
+}
+
+/// Request to upload a chunk of data (HTTP PATCH).
+message UploadChunkRequest {
+  string upload_id = 1;   // The ID of the upload being appended to
+  int64 offset = 2;       // The offset at which this chunk starts
+  bytes data = 3;         // Raw binary payload
+}
+
+/// Response after a chunk is appended – returns the updated Upload.
+message UploadChunkResponse {
+  Upload upload = 1;
+}
+
+/// Request to obtain the status of an upload (HTTP HEAD).
+message GetUploadStatusRequest {
+  string upload_id = 1;
+}
+
+/// Response with the current state of the upload.
+message GetUploadStatusResponse {
+  Upload upload = 1;
+}
+
+/// Request to cancel (delete) an upload (HTTP DELETE).
+message DeleteUploadRequest {
+  string upload_id = 1;
+}
+
+/// -----------------------------------------------------------------------------
+///  gRPC service with HTTP‑JSON annotations (TUS semantics)
+/// -----------------------------------------------------------------------------
+service TusService {
+
+  /// 1️⃣  Create an upload  →  HTTP POST /files
+  ///    The request body contains only the total length; all other
+  ///    metadata (Upload-Metadata, Upload-Checksum) would be supplied in
+  ///    HTTP headers.  For the pure‑gRPC API the headers are omitted.
+  rpc CreateUpload(CreateUploadRequest) returns (CreateUploadResponse) {
+    option (google.api.http) = {
+      post: "/files"
+      body: "*"
+      // The `Tus-Resumable: 1.0.0` header is automatically added by the
+      // TUS client and validated by the server – it is not part of the
+      // message payload.
+    };
+  }
+
+  /// 2️⃣  Append a chunk  →  HTTP PATCH /files/{upload_id}
+  ///    The chunk data is sent as the request body.  The `offset`
+  ///    field is also included in the body to make the RPC idempotent.
+  rpc UploadChunk(UploadChunkRequest) returns (UploadChunkResponse) {
+    option (google.api.http) = {
+      patch: "/files/{upload_id}"
+      body: "*"
+      // The HTTP header `Upload-Offset` is expected to match the
+      // `offset` field; the server should reject mismatches.
+    };
+  }
+
+  /// 3️⃣  Get upload status  →  HTTP HEAD /files/{upload_id}
+  ///    The server responds with the upload state and all the
+  ///    TUS‑specific headers (`Upload-Offset`, `Upload-Length`, …).
+  rpc GetUploadStatus(GetUploadStatusRequest) returns (GetUploadStatusResponse) {
+    option (google.api.http) = {
+      get: "/files/{upload_id}"
+      // The response body can be empty for a HEAD request; the
+      // status headers are sent via gRPC‑JSON `metadata`.
+      // In practice, most JSON‑proxying libraries treat a GET as a HEAD
+      // if the client sends `HEAD` – the mapping here works for both.
+    };
+  }
+
+  /// 4️⃣  Delete an upload  →  HTTP DELETE /files/{upload_id}
+  ///    Deletes the upload and any stored data.
+  rpc DeleteUpload(DeleteUploadRequest) returns (google.protobuf.Empty) {
+    option (google.api.http) = {
+      delete: "/files/{upload_id}"
+    };
+  }
+}
+
+
+
+

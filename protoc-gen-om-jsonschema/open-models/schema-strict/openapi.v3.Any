@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "openapi.v3.Any",
+  "type": "object",
+  "properties": {
+    "value": {
+      "$ref": "google.protobuf.Any"
+    },
+    "yaml": {
+      "type": "string"
+    }
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "openapi.v3.OauthFlows",
+  "type": "object",
+  "description": "Allows configuration of the supported OAuth Flows.OauthFlows",
+  "properties": {
+    "authorizationCode": {
+      "$ref": "openapi.v3.OauthFlow"
+    },
+    "clientCredentials": {
+      "$ref": "openapi.v3.OauthFlow"
+    },
+    "implicit": {
+      "$ref": "openapi.v3.OauthFlow"
+    },
+    "password": {
+      "$ref": "openapi.v3.OauthFlow"
+    },
+    "specificationExtension": {
+      "type": "array",
+      "items": {
+        "$ref": "openapi.v3.NamedAny"
+      }
+    }
+  }
+}

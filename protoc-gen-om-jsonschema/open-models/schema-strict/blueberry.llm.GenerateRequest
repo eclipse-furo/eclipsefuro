@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "blueberry.llm.GenerateRequest",
+  "type": "object",
+  "description": "Text Generation API Messages\n GenerateRequest contains parameters for text generation.GenerateRequest",
+  "properties": {
+    "context": {
+      "type": "array",
+      "description": "DEPRECATED: Context from a previous /generate response to keep short conversational memory.",
+      "items": {
+        "type": "integer"
+      }
+    },
+    "format": {
+      "$ref": "google.protobuf.Value",
+      "description": "The format to return a response in. Can be the string \"json\" or a JSON schema object.\n Uses google.protobuf.Value to support either a string or an object."
+    },
+    "images": {
+      "type": "array",
+      "description": "Optional images (base64-encoded when sent over JSON). For multimodal models.",
+      "items": {
+        "type": "string"
+      }
+    },
+    "keepAlive": {
+      "type": "string",
+      "description": "How long the model should stay loaded following the request (e.g. \"5m\")."
+    },
+    "model": {
+      "type": "string",
+      "description": "Model name (required), e.g. \"llama3.2\"."
+    },
+    "options": {
+      "$ref": "google.protobuf.Struct",
+      "description": "Optional generation options. Common keys:\n   - \"temperature\": 0.0 to 1.0\n   - \"top_p\": 0.0 to 1.0\n   - \"max_new_tokens\": maximum tokens to generate\n   - \"stop\": comma-separated stop sequences\n Using Struct preserves numeric/boolean types (e.g., temperature: 0)."
+    },
+    "prompt": {
+      "type": "string",
+      "description": "The prompt to generate a response for."
+    },
+    "raw": {
+      "type": "boolean",
+      "description": "If true, no formatting will be applied to the prompt (bypass templating)."
+    },
+    "stream": {
+      "type": "boolean",
+      "description": "If false, the response will be returned as a single object rather than a stream.\n Default: true (streaming)."
+    },
+    "suffix": {
+      "type": "string",
+      "description": "The text after the model response."
+    },
+    "system": {
+      "type": "string",
+      "description": "System message (overrides what is defined in the Modelfile)."
+    },
+    "template": {
+      "type": "string",
+      "description": "The prompt template to use (overrides what is defined in the Modelfile)."
+    },
+    "think": {
+      "type": "boolean",
+      "description": "For thinking models: should the model think before responding?"
+    }
+  }
+}

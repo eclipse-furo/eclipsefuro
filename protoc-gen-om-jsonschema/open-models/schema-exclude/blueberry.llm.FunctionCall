@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "blueberry.llm.FunctionCall",
+  "type": "object",
+  "description": "FunctionCall contains the function name and arguments for a tool call.FunctionCall",
+  "properties": {
+    "arguments": {
+      "type": "string",
+      "description": "Arguments as JSON string, matching the REST tool_calls payload.\n Note: The model does not always generate valid JSON, and may hallucinate\n parameters not defined by your function schema. Validate arguments before calling."
+    },
+    "name": {
+      "type": "string",
+      "description": "The name of the function to call (must match a Tool.function.name)."
+    }
+  }
+}

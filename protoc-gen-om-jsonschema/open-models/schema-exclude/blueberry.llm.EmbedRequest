@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "blueberry.llm.EmbedRequest",
+  "type": "object",
+  "description": "EmbedRequest contains the model and input texts for embedding generation.EmbedRequest",
+  "properties": {
+    "input": {
+      "type": "array",
+      "description": "One or more text inputs. The server returns a vector for each.",
+      "items": {
+        "type": "string"
+      }
+    },
+    "model": {
+      "type": "string",
+      "description": "Name of the model to use (e.g. \"sentence-transformer\")."
+    }
+  }
+}

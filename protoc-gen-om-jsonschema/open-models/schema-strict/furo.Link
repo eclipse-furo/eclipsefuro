@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "furo.Link",
+  "type": "object",
+  "description": "linkLink",
+  "properties": {
+    "href": {
+      "type": "string",
+      "description": "link"
+    },
+    "method": {
+      "type": "string",
+      "description": "method of curl v1.0.0"
+    },
+    "rel": {
+      "type": "string",
+      "description": "the relationship like self..."
+    },
+    "service": {
+      "type": "string",
+      "description": "name of the service which can handle this link"
+    },
+    "type": {
+      "type": "string",
+      "description": "mime type"
+    }
+  }
+}

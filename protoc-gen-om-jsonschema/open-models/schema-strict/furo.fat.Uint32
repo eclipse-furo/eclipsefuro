@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "furo.fat.Uint32",
+  "type": "object",
+  "description": "Furo annotated type wrapper message for `uint32`.  https://github.com/protocolbuffers/protobuf/blob/master/src/google/protobuf/wrappers.protoUint32",
+  "properties": {
+    "attributes": {
+      "$ref": "furo.fat.Uint32.AttributesEntry",
+      "description": "Attributes for a value, something like confidential-msg: you are not allowed to see this value"
+    },
+    "labels": {
+      "$ref": "furo.fat.Uint32.LabelsEntry",
+      "description": "Labels / flags for the value, something like unspecified, empty, confidential, absent,... Can be used for AI, UI, Business Logic,..."
+    },
+    "value": {
+      "type": "integer",
+      "description": "The JSON representation for `Uint32Value` is JSON number",
+      "minimum": 0
+    }
+  }
+}

@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "blueberry.tus.Upload",
+  "type": "object",
+  "description": "/ Represents a single resumable upload.Upload",
+  "properties": {
+    "checksum": {
+      "$ref": "blueberry.tus.Checksum",
+      "description": "/ Optional checksum metadata (algorithm → base64 hash)."
+    },
+    "complete": {
+      "type": "boolean",
+      "description": "/ Flag that indicates whether the upload is complete."
+    },
+    "created": {
+      "type": "integer",
+      "description": "/ Unix‑epoch time (milliseconds) when the upload was created."
+    },
+    "id": {
+      "type": "string",
+      "description": "/ A server‑generated opaque identifier.  In the HTTP API this is\n/ the value returned in the `Location` header."
+    },
+    "lastModified": {
+      "type": "integer",
+      "description": "/ Unix‑epoch time (milliseconds) of the last modification\n/ (upload or status change)."
+    },
+    "metadata": {
+      "$ref": "blueberry.tus.Metadata",
+      "description": "/ Arbitrary metadata attached to the upload.  Keys are ASCII\n/ strings; values are base64‑encoded strings."
+    },
+    "offset": {
+      "type": "integer",
+      "description": "/ Current offset in bytes that the server has received."
+    },
+    "totalLength": {
+      "type": "integer",
+      "description": "/ Total size of the file in bytes, as supplied by the client.\n/ Use -1 to indicate an unknown length (chunked upload)."
+    }
+  }
+}

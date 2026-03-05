@@ -1,0 +1,11 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "blueberry.tus.CreateUploadResponse",
+  "type": "object",
+  "description": "/ Response to CreateUpload (returns the newly created Upload).CreateUploadResponse",
+  "properties": {
+    "upload": {
+      "$ref": "blueberry.tus.Upload"
+    }
+  }
+}

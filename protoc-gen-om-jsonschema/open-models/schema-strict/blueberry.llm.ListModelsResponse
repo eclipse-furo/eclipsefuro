@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "blueberry.llm.ListModelsResponse",
+  "type": "object",
+  "description": "ListModelsResponse contains the list of available models.ListModelsResponse",
+  "properties": {
+    "models": {
+      "type": "array",
+      "description": "One entry per available model.",
+      "items": {
+        "$ref": "blueberry.llm.Model"
+      }
+    }
+  }
+}

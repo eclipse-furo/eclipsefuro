@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "openapi.v3.DefaultType",
+  "type": "object",
+  "description": "ONEOF[oneof]: Set exactly ONE of [number, boolean, string]",
+  "properties": {
+    "boolean": {
+      "type": "boolean"
+    },
+    "number": {
+      "type": "number"
+    },
+    "string": {
+      "type": "string"
+    }
+  }
+}

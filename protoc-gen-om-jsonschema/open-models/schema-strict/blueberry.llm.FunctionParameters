@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "blueberry.llm.FunctionParameters",
+  "type": "object",
+  "description": "FunctionParameters defines the JSON Schema for function parameters.FunctionParameters",
+  "properties": {
+    "items": {
+      "$ref": "blueberry.llm.FunctionParameters",
+      "description": "Items schema for array types."
+    },
+    "properties": {
+      "$ref": "blueberry.llm.FunctionParameters.PropertiesEntry",
+      "description": "Mapping of property name to property definition."
+    },
+    "required": {
+      "type": "array",
+      "description": "List of required property names.",
+      "items": {
+        "type": "string"
+      }
+    },
+    "type": {
+      "type": "string",
+      "description": "JSON-Schema type – always \"object\" for function parameters."
+    }
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "blueberry.llm.EmbedResponse.Embeddings",
+  "type": "object",
+  "description": "Embeddings represents a single embedding vector.Embeddings",
+  "properties": {
+    "values": {
+      "type": "array",
+      "description": "The floating-point values of the vector.",
+      "items": {
+        "type": "number"
+      }
+    }
+  }
+}

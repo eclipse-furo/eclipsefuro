@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "blueberry.llm.EmbedResponse",
+  "type": "object",
+  "description": "EmbedResponse contains the generated embedding vectors.EmbedResponse",
+  "properties": {
+    "embeddings": {
+      "type": "array",
+      "description": "One vector per `input` element.",
+      "items": {
+        "$ref": "blueberry.llm.EmbedResponse.Embeddings"
+      }
+    }
+  }
+}

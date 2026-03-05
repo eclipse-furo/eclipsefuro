@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "google.protobuf.DescriptorProto",
+  "type": "object",
+  "description": "Describes a message type.DescriptorProto",
+  "properties": {
+    "enumType": {
+      "type": "array",
+      "items": {
+        "$ref": "google.protobuf.EnumDescriptorProto"
+      }
+    },
+    "extension": {
+      "type": "array",
+      "items": {
+        "$ref": "google.protobuf.FieldDescriptorProto"
+      }
+    },
+    "extensionRange": {
+      "type": "array",
+      "items": {
+        "$ref": "google.protobuf.DescriptorProto.ExtensionRange"
+      }
+    },
+    "field": {
+      "type": "array",
+      "items": {
+        "$ref": "google.protobuf.FieldDescriptorProto"
+      }
+    },
+    "name": {
+      "type": "string"
+    },
+    "nestedType": {
+      "type": "array",
+      "items": {
+        "$ref": "google.protobuf.DescriptorProto"
+      }
+    },
+    "oneofDecl": {
+      "type": "array",
+      "items": {
+        "$ref": "google.protobuf.OneofDescriptorProto"
+      }
+    },
+    "options": {
+      "$ref": "google.protobuf.MessageOptions"
+    },
+    "reservedName": {
+      "type": "array",
+      "description": "Reserved field names, which may not be used by fields in the same message.\n A given name may only be reserved once.",
+      "items": {
+        "type": "string"
+      }
+    },
+    "reservedRange": {
+      "type": "array",
+      "items": {
+        "$ref": "google.protobuf.DescriptorProto.ReservedRange"
+      }
+    }
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "blueberry.llm.ToolCall",
+  "type": "object",
+  "description": "ToolCall represents a function call request from the model.ToolCall",
+  "properties": {
+    "function": {
+      "$ref": "blueberry.llm.FunctionCall",
+      "description": "The function the model wishes to invoke."
+    },
+    "id": {
+      "type": "string",
+      "description": "The ID of the tool call."
+    },
+    "type": {
+      "type": "string",
+      "description": "The type of the tool. Currently, only \"function\" is supported."
+    }
+  }
+}

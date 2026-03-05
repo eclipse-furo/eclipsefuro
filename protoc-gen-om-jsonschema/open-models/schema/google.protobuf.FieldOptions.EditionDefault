@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "google.protobuf.FieldOptions.EditionDefault",
+  "type": "object",
+  "properties": {
+    "edition": {
+      "$ref": "google.protobuf.Edition"
+    },
+    "value": {
+      "type": "string",
+      "description": "Textproto value."
+    }
+  }
+}

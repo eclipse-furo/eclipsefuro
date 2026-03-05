@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "blueberry.tus.CreateUploadRequest",
+  "type": "object",
+  "description": "/ Request message for creating a new upload (HTTP POST).CreateUploadRequest",
+  "properties": {
+    "checksum": {
+      "$ref": "blueberry.tus.Checksum"
+    },
+    "metadata": {
+      "$ref": "blueberry.tus.Metadata"
+    },
+    "totalLength": {
+      "type": "integer",
+      "description": "-1 if unknown"
+    }
+  }
+}

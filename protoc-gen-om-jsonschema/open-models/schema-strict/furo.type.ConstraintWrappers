@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "furo.type.ConstraintWrappers",
+  "type": "object",
+  "properties": {
+    "boolValue": {
+      "$ref": "google.protobuf.BoolValue"
+    },
+    "bytesValue": {
+      "$ref": "google.protobuf.BytesValue"
+    },
+    "doubleValue": {
+      "$ref": "google.protobuf.DoubleValue"
+    },
+    "exclInt32Value": {
+      "$ref": "google.protobuf.Int32Value",
+      "maximum": 10,
+      "minimum": 3,
+      "default": 3
+    },
+    "exclInt64Value": {
+      "$ref": "google.protobuf.Int64Value",
+      "maximum": 10,
+      "minimum": 3,
+      "default": "3"
+    },
+    "floatValue": {
+      "$ref": "google.protobuf.FloatValue"
+    },
+    "int32Value": {
+      "$ref": "google.protobuf.Int32Value",
+      "maximum": 10,
+      "minimum": 3,
+      "default": 3
+    },
+    "int64Value": {
+      "$ref": "google.protobuf.Int64Value",
+      "maximum": 10,
+      "minimum": 3,
+      "default": "3"
+    },
+    "stringValue": {
+      "$ref": "google.protobuf.StringValue",
+      "default": "default"
+    },
+    "uint32Value": {
+      "$ref": "google.protobuf.UInt32Value"
+    },
+    "uint64Value": {
+      "$ref": "google.protobuf.UInt64Value"
+    }
+  },
+  "required": [
+    "string_value",
+    "int32_value",
+    "int64_value"
+  ]
+}

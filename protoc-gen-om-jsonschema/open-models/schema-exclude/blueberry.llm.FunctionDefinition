@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "blueberry.llm.FunctionDefinition",
+  "type": "object",
+  "description": "FunctionDefinition describes a callable function for tool use.FunctionDefinition",
+  "properties": {
+    "description": {
+      "type": "string",
+      "description": "Human-readable description."
+    },
+    "name": {
+      "type": "string",
+      "description": "Identifier for the function."
+    },
+    "parameters": {
+      "$ref": "blueberry.llm.FunctionParameters",
+      "description": "Parameter schema for the function."
+    }
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "blueberry.llm.PropertyDefinition",
+  "type": "object",
+  "description": "PropertyDefinition describes a single property in a function's parameter schema.PropertyDefinition",
+  "properties": {
+    "description": {
+      "type": "string",
+      "description": "Human-readable description."
+    },
+    "enum": {
+      "type": "array",
+      "description": "Optional enum values. If omitted, the property accepts any value of the specified type.",
+      "items": {
+        "type": "string"
+      }
+    },
+    "items": {
+      "$ref": "blueberry.llm.FunctionParameters",
+      "description": "Items schema for array types."
+    },
+    "type": {
+      "type": "string",
+      "description": "JSON type, e.g. \"string\", \"integer\", \"array\"."
+    }
+  }
+}

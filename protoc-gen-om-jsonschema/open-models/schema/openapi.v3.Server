@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "openapi.v3.Server",
+  "type": "object",
+  "description": "An object representing a Server.Server",
+  "properties": {
+    "description": {
+      "type": "string"
+    },
+    "specificationExtension": {
+      "type": "array",
+      "items": {
+        "$ref": "openapi.v3.NamedAny"
+      }
+    },
+    "url": {
+      "type": "string"
+    },
+    "variables": {
+      "$ref": "openapi.v3.ServerVariables"
+    }
+  }
+}

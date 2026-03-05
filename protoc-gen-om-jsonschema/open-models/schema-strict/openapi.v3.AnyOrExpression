@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "openapi.v3.AnyOrExpression",
+  "type": "object",
+  "description": "ONEOF[oneof]: Set exactly ONE of [any, expression]",
+  "properties": {
+    "any": {
+      "$ref": "openapi.v3.Any"
+    },
+    "expression": {
+      "$ref": "openapi.v3.Expression"
+    }
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "blueberry.profile.UpdateProfileRequest",
+  "type": "object",
+  "description": "request message for UpdateProfileUpdateProfileRequest",
+  "properties": {
+    "body": {
+      "$ref": "blueberry.profile.Profile",
+      "description": "Body with profile.Profile"
+    },
+    "updateMask": {
+      "$ref": "google.protobuf.FieldMask",
+      "description": "Needed to patch a record"
+    }
+  }
+}

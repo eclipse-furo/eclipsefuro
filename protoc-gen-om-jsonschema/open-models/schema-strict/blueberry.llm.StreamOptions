@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "blueberry.llm.StreamOptions",
+  "type": "object",
+  "description": "StreamOptions configures streaming behavior for chat responses.\n Only set this when stream is true.StreamOptions",
+  "properties": {
+    "includeObfuscation": {
+      "type": "boolean",
+      "description": "When true, stream obfuscation will be enabled.\n Stream obfuscation adds random characters to an obfuscation field on streaming\n delta events to normalize payload sizes as a mitigation to certain side-channel attacks.\n These obfuscation fields are included by default, but add a small amount of overhead.\n Set to false to optimize for bandwidth if you trust the network links."
+    },
+    "includeUsage": {
+      "type": "boolean",
+      "description": "If set, an additional chunk will be streamed before the data: [DONE] message.\n The usage field on this chunk shows the token usage statistics for the entire request,\n and the choices field will always be an empty array.\n All other chunks will also include a usage field, but with a null value.\n Note: If the stream is interrupted, you may not receive the final usage chunk."
+    }
+  }
+}

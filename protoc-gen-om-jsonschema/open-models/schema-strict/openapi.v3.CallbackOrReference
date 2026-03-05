@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "openapi.v3.CallbackOrReference",
+  "type": "object",
+  "description": "ONEOF[oneof]: Set exactly ONE of [callback, reference]",
+  "properties": {
+    "callback": {
+      "$ref": "openapi.v3.Callback"
+    },
+    "reference": {
+      "$ref": "openapi.v3.Reference"
+    }
+  }
+}

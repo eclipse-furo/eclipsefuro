@@ -1,0 +1,28 @@
+
+syntax = "proto3";
+package furo;
+option csharp_namespace = "Furo";
+option go_package = "github.com/theNorstroem/FuroBaseSpecs/dist/pb/furo;furopb";
+option java_multiple_files = true;
+option java_outer_classname = "FuroProto";
+option java_package = "pro.furo";
+option objc_class_prefix = "FPB";
+
+// link
+message Link {
+
+  // the relationship like self...
+  string rel = 1;
+
+  // method of curl v1.0.0
+  string method = 2;
+
+  // link
+  string href = 3;
+
+  // mime type
+  string type = 4;
+
+  // name of the service which can handle this link
+  string service = 5;
+}

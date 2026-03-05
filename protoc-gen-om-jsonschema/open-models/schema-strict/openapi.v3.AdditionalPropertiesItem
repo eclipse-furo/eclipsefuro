@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "openapi.v3.AdditionalPropertiesItem",
+  "type": "object",
+  "description": "ONEOF[oneof]: Set exactly ONE of [schemaOrReference, boolean]",
+  "properties": {
+    "boolean": {
+      "type": "boolean"
+    },
+    "schemaOrReference": {
+      "$ref": "openapi.v3.SchemaOrReference"
+    }
+  }
+}

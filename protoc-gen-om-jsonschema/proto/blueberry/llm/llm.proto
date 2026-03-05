@@ -1,0 +1,499 @@
+// LLM Service (Ollama-compatible)
+// API Reference: https://ollama.readthedocs.io/en/latest/api/
+//
+// This proto implements a gRPC version of the public Ollama REST API.
+// Every endpoint is annotated with `google.api.http` so that the same
+// proto can be used with gRPC-JSON transcoding – you can call the
+// service either via gRPC or via HTTP/JSON.
+//
+// The API is intentionally close to the original Ollama API but
+// uses gRPC idioms where appropriate:
+//
+//   - Streaming RPCs (`Generate`, `Chat`) return a stream of
+//     incremental response chunks. Clients should read until
+//     `done = true` or the stream closes.
+//   - All numeric metrics are in seconds or token counts.
+//   - Optional fields are represented with protobuf-3 default values
+//     (e.g. an empty string). The API documentation indicates
+//     the default in the field comment.
+//
+// For each request we provide a short example in JSON that matches the
+// HTTP body that would be sent to the Ollama REST endpoint.
+
+syntax = "proto3";
+package blueberry.llm;
+
+// Import dependencies (required for HTTP annotations, JSON types,
+// timestamps and OpenAPI docs)
+import "google/api/annotations.proto";
+import "google/protobuf/struct.proto";
+import "google/protobuf/timestamp.proto";
+import "openapiv3/annotations.proto";
+
+option go_package = "github.com/veith/blueberry-specs/pkg/pb/llm;llmpb";
+option java_multiple_files = true;
+option java_package = "pro.blueberry.llm";
+
+// LlmService provides endpoints for embeddings, text generation, chat completion,
+// and model management. All endpoints support both gRPC and HTTP/JSON access.
+service LlmService {
+
+  // Embed creates vector representations for input texts.
+  //
+  // HTTP: POST /llm/embeddings
+  //
+  // Example request body (JSON):
+  // {
+  //     "model": "sentence-transformer",
+  //     "input": [
+  //         "Hello world!",
+  //         "OpenAI GPT-4 is powerful."
+  //     ]
+  // }
+  //
+  // Response contains an array of float vectors – one per input string.
+  rpc Embed(EmbedRequest) returns (EmbedResponse) {
+    option (google.api.http) = {
+      post: "/llm/embeddings"
+      body: "*"
+    };
+  }
+
+  // Generate produces a continuation of the supplied prompt.
+  // The response is streamed – each message contains a new chunk of text.
+  //
+  // HTTP: POST /llm/generate
+  //
+  // Example request body (JSON):
+  // {
+  //     "model": "llama2",
+  //     "prompt": "Write a short poem about rain:",
+  //     "stream": true,
+  //     "options": {
+  //         "temperature": "0.7",
+  //         "max_new_tokens": "50"
+  //     }
+  // }
+  rpc Generate(GenerateRequest) returns (stream GenerateResponse) {
+    option (google.api.http) = {
+      post: "/llm/generate"
+      body: "*"
+    };
+  }
+
+  // Chat sends a full conversation history and receives incremental replies.
+  // If `stream` is false, the client receives the entire assistant reply
+  // in a single message; if true, the assistant's response is streamed.
+  //
+  // HTTP: POST /llm/chat
+  //
+  // Example request body (JSON):
+  // {
+  //     "model": "llama2",
+  //     "messages": [
+  //         {"role": "user", "content": "What is the capital of France?"},
+  //         {"role": "assistant", "content": "I don't know."}
+  //     ],
+  //     "stream": true,
+  //     "tools": [
+  //         {
+  //             "type": "function",
+  //             "function": {
+  //                 "name": "get_location",
+  //                 "description": "Retrieve a geographic location.",
+  //                 "parameters": {
+  //                     "type": "object",
+  //                     "required": ["city"],
+  //                     "properties": {
+  //                         "city": {"type": "string", "description": "City name"}
+  //                     }
+  //                 }
+  //             }
+  //         }
+  //     ],
+  //     "format": "json",
+  //     "keep_alive": "5m"
+  // }
+  rpc Chat(ChatRequest) returns (stream ChatResponse) {
+    option (google.api.http) = {
+      post: "/llm/chat"
+      body: "*"
+    };
+  }
+
+  // ListModels returns all models known to the server.
+  //
+  // HTTP: GET /llm/tags
+  //
+  // No request body required.
+  rpc ListModels(ListModelsRequest) returns (ListModelsResponse) {
+    option (google.api.http) = {get: "/llm/tags"};
+  }
+
+  // Additional endpoints (e.g. `PullModel`, `DeleteModel`) can be added
+  // here as the service evolves.
+}
+
+
+// Embedding API Messages
+
+// EmbedRequest contains the model and input texts for embedding generation.
+message EmbedRequest {
+  // Name of the model to use (e.g. "sentence-transformer").
+  string model = 1;
+
+  // One or more text inputs. The server returns a vector for each.
+  repeated string input = 2;
+}
+
+// EmbedResponse contains the generated embedding vectors.
+message EmbedResponse {
+  // Embeddings represents a single embedding vector.
+  message Embeddings {
+    // The floating-point values of the vector.
+    repeated float values = 1;
+  }
+
+  // One vector per `input` element.
+  repeated Embeddings embeddings = 1;
+}
+
+
+// Text Generation API Messages
+// GenerateRequest contains parameters for text generation.
+message GenerateRequest {
+  // Model name (required), e.g. "llama3.2".
+  string model = 1;
+
+  // The prompt to generate a response for.
+  string prompt = 2;
+
+  // If false, the response will be returned as a single object rather than a stream.
+  // Default: true (streaming).
+  bool stream = 3;
+
+  // Optional generation options. Common keys:
+  //   - "temperature": 0.0 to 1.0
+  //   - "top_p": 0.0 to 1.0
+  //   - "max_new_tokens": maximum tokens to generate
+  //   - "stop": comma-separated stop sequences
+  // Using Struct preserves numeric/boolean types (e.g., temperature: 0).
+  google.protobuf.Struct options = 4;
+
+  // The text after the model response.
+  string suffix = 5;
+
+  // Optional images (base64-encoded when sent over JSON). For multimodal models.
+  repeated bytes images = 6;
+
+  // The format to return a response in. Can be the string "json" or a JSON schema object.
+  // Uses google.protobuf.Value to support either a string or an object.
+  google.protobuf.Value format = 7;
+
+  // For thinking models: should the model think before responding?
+  bool think = 8;
+
+  // System message (overrides what is defined in the Modelfile).
+  string system = 9;
+
+  // The prompt template to use (overrides what is defined in the Modelfile).
+  string template = 10;
+
+  // If true, no formatting will be applied to the prompt (bypass templating).
+  bool raw = 11;
+
+  // How long the model should stay loaded following the request (e.g. "5m").
+  string keep_alive = 12;
+
+  // DEPRECATED: Context from a previous /generate response to keep short conversational memory.
+  repeated int32 context = 13;
+}
+
+// GenerateResponse contains a chunk of generated text or the final result.
+message GenerateResponse {
+  // Model used for the response.
+  string model = 1;
+
+  // Time when the response chunk was created.
+  google.protobuf.Timestamp created_at = 2;
+
+  // The current chunk of the model response text. Empty in the final message
+  // if the response was streamed; contains the full response when stream=false.
+  string response = 3;
+
+  // Indicates whether this is the final response object in the stream.
+  bool done = 4;
+
+  // Reason for termination (e.g., "stop", "length", "unload"). Present on final message.
+  string done_reason = 5;
+
+  // DEPRECATED: Encoding of the conversation used in this response. Present on final message.
+  repeated int32 context = 6;
+
+  // Statistics (present only on the final response in the stream).
+  // Durations are in nanoseconds to match the REST API.
+
+  // Total time spent generating the response (ns).
+  int64 total_duration = 7;
+  // Time spent loading the model (ns).
+  int64 load_duration = 8;
+  // Number of tokens in the prompt.
+  int64 prompt_eval_count = 9;
+  // Time spent evaluating the prompt (ns).
+  int64 prompt_eval_duration = 10;
+  // Number of tokens in the response.
+  int64 eval_count = 11;
+  // Time spent generating the response (ns).
+  int64 eval_duration = 12;
+}
+
+
+// Chat API Messages
+
+// Tool defines a function that the model may call during chat completion.
+message Tool {
+  // The JSON-Schema type – always "function".
+  string type = 1;
+
+  // The JSON-Schema function definition.
+  FunctionDefinition function = 2;
+}
+
+// FunctionDefinition describes a callable function for tool use.
+message FunctionDefinition {
+  // Identifier for the function.
+  string name = 1;
+  // Human-readable description.
+  string description = 2;
+  // Parameter schema for the function.
+  FunctionParameters parameters = 3;
+}
+
+// FunctionParameters defines the JSON Schema for function parameters.
+message FunctionParameters {
+  // JSON-Schema type – always "object" for function parameters.
+  string type = 1;
+
+  // List of required property names.
+  repeated string required = 2;
+
+  // Mapping of property name to property definition.
+  map<string, PropertyDefinition> properties = 3;
+
+  // Items schema for array types.
+  FunctionParameters items = 4;
+}
+
+// PropertyDefinition describes a single property in a function's parameter schema.
+message PropertyDefinition {
+  // JSON type, e.g. "string", "integer", "array".
+  string type = 1;
+  // Human-readable description.
+  string description = 2;
+
+  // Optional enum values. If omitted, the property accepts any value of the specified type.
+  repeated string enum = 3;
+
+  // Items schema for array types.
+  FunctionParameters items = 4;
+}
+
+// ChatRequest contains the full conversation payload for chat completion.
+// API Reference: https://platform.openai.com/docs/api-reference/chat/create
+message ChatRequest {
+  // Model name.
+  string model = 1;
+
+  // History of messages in chronological order.
+  repeated Message messages = 2;
+
+  // Stream the response if true. If false, the server returns a single final chunk.
+  bool stream = 3;
+
+  // Options for streaming response. Only set this when stream is true.
+  StreamOptions stream_options = 9;
+
+  // Optional generation options. Common keys:
+  //   - "temperature": 0.0 to 1.0
+  //   - "top_p": 0.0 to 1.0
+  //   - "max_new_tokens": maximum tokens to generate
+  //   - "stop": comma-separated stop sequences
+  // Using Struct preserves numeric/boolean types (e.g., temperature: 0).
+  google.protobuf.Struct options = 4;
+
+  // Optional tools the model may call. When `stream` is true, the
+  // server may send partial tool-call information in intermediate
+  // responses. Tools are only honored when the server is configured
+  // to allow function calling (see server docs for details).
+  repeated Tool tools = 5;
+
+  // The format to return a response in.
+  // Uses google.protobuf.Value to support multiple object variants.
+  //
+  // Setting to { "type": "json_schema", "json_schema": {...} } enables
+  // Structured Outputs which ensures the model will match your supplied JSON schema.
+  //
+  // Setting to { "type": "json_object" } enables the older JSON mode,
+  // which ensures the message the model generates is valid JSON.
+  // Using json_schema is preferred for models that support it.
+  google.protobuf.Value response_format = 6;
+
+  // How long the model should stay loaded after the request completes.
+  // Format follows Go's `time.ParseDuration` – e.g. "5m", "30s".
+  // Default: "5m".
+  string keep_alive = 7;
+
+  // For thinking models: should the model think before responding?
+  // Only used for Ollama.
+  bool think = 8;
+
+  // Constrains effort on reasoning for reasoning models.
+  // Currently supported values are: "minimal", "low", "medium", and "high".
+  // Reducing reasoning effort can result in faster responses and fewer tokens.
+  // Note: The gpt-5-pro model defaults to (and only supports) high reasoning effort.
+  string reasoning_effort = 10;
+}
+
+// ChatResponse contains a streamed response chunk from chat completion.
+message ChatResponse {
+  // Model ID used for the request.
+  string model = 1;
+
+  // Time when the response was created.
+  google.protobuf.Timestamp created_at = 2;
+
+  // Assistant's reply message.
+  Message message = 3;
+
+  // True if this is the final chunk of the assistant reply.
+  bool done = 4;
+
+  // Reason for termination (e.g., "stop", "length", "load", "unload").
+  string done_reason = 5;
+
+  // Statistics (populated only on the final chunk).
+  // Durations in nanoseconds to match REST API examples.
+
+  // Total time spent generating the response (ns).
+  int64 total_duration = 6;
+  // Time spent loading the model (ns).
+  int64 load_duration = 7;
+  // Number of tokens in the prompt.
+  int64 prompt_eval_count = 8;
+  // Time spent evaluating the prompt (ns).
+  int64 prompt_eval_duration = 9;
+  // Number of tokens in the response.
+  int64 eval_count = 10;
+  // Time spent generating the response (ns).
+  int64 eval_duration = 11;
+}
+
+// ToolCall represents a function call request from the model.
+message ToolCall {
+  // The ID of the tool call.
+  string id = 1;
+  // The type of the tool. Currently, only "function" is supported.
+  string type = 2;
+  // The function the model wishes to invoke.
+  FunctionCall function = 3;
+}
+
+// StreamOptions configures streaming behavior for chat responses.
+// Only set this when stream is true.
+message StreamOptions {
+  // When true, stream obfuscation will be enabled.
+  // Stream obfuscation adds random characters to an obfuscation field on streaming
+  // delta events to normalize payload sizes as a mitigation to certain side-channel attacks.
+  // These obfuscation fields are included by default, but add a small amount of overhead.
+  // Set to false to optimize for bandwidth if you trust the network links.
+  bool include_obfuscation = 1;
+
+  // If set, an additional chunk will be streamed before the data: [DONE] message.
+  // The usage field on this chunk shows the token usage statistics for the entire request,
+  // and the choices field will always be an empty array.
+  // All other chunks will also include a usage field, but with a null value.
+  // Note: If the stream is interrupted, you may not receive the final usage chunk.
+  bool include_usage = 2;
+}
+
+// FunctionCall contains the function name and arguments for a tool call.
+message FunctionCall {
+  // The name of the function to call (must match a Tool.function.name).
+  string name = 1;
+
+  // Arguments as JSON string, matching the REST tool_calls payload.
+  // Note: The model does not always generate valid JSON, and may hallucinate
+  // parameters not defined by your function schema. Validate arguments before calling.
+  string arguments = 2;
+}
+
+// Message represents a single turn in a conversation.
+message Message {
+  // Role of the sender: "user", "assistant", "system", or "tool".
+  string role = 1;
+
+  // Content of the message. For role "assistant" this may be a partial
+  // text chunk; for role "tool" it is the tool-response JSON.
+  string content = 2;
+
+  // Optional "thinking" text from reasoning models.
+  string reasoning = 3;
+
+  // Optional images (binary data for multimodal models).
+  repeated bytes images = 4;
+
+  // Tool calls that the model wants to execute. Populated only when
+  // role="assistant" and the model decides to invoke a tool.
+  // Multiple calls may be present in a single chunk.
+  repeated ToolCall tool_calls = 5;
+
+  // Optional name of the tool that was invoked.
+  string tool_name = 6;
+
+  // Tool call ID that this message is responding to.
+  // You should set this when role is "tool".
+  string tool_call_id = 7;
+}
+
+
+// Model Management API Messages
+
+// ListModelsRequest is empty – no parameters required.
+message ListModelsRequest {}
+
+// ListModelsResponse contains the list of available models.
+message ListModelsResponse {
+  // One entry per available model.
+  repeated Model models = 1;
+}
+
+// Model describes an LLM model available on the server.
+message Model {
+  // Full model name (e.g. "llama2").
+  string name = 1;
+  // The Unix timestamp (in seconds) when the model was created.
+  int64 created = 2;
+  // Size on disk in bytes.
+  int64 size = 3;
+  // SHA-256 digest of the model files.
+  string digest = 4;
+
+  // Details contains additional metadata about the model.
+  message Details {
+    // Model format, e.g. "ggml", "gguf".
+    string format = 5;
+    // Model family, e.g. "llama".
+    string family = 6;
+    // Additional model families.
+    repeated string families = 7;
+    // Human-readable parameter count (e.g. "13B").
+    string parameter_size = 8;
+    // Quantization level (e.g. "q4_0").
+    string quantization_level = 9;
+  }
+
+  // Ollama-specific model details.
+  Details details = 5;
+  // The object type, which is always "model".
+  string object = 6;
+}

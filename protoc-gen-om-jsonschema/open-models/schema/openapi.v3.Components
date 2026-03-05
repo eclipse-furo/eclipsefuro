@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "openapi.v3.Components",
+  "type": "object",
+  "description": "Holds a set of reusable objects for different aspects of the OAS. All objects defined within the components object will have no effect on the API unless they are explicitly referenced from properties outside the components object.Components",
+  "properties": {
+    "callbacks": {
+      "$ref": "openapi.v3.CallbacksOrReferences"
+    },
+    "examples": {
+      "$ref": "openapi.v3.ExamplesOrReferences"
+    },
+    "headers": {
+      "$ref": "openapi.v3.HeadersOrReferences"
+    },
+    "links": {
+      "$ref": "openapi.v3.LinksOrReferences"
+    },
+    "parameters": {
+      "$ref": "openapi.v3.ParametersOrReferences"
+    },
+    "requestBodies": {
+      "$ref": "openapi.v3.RequestBodiesOrReferences"
+    },
+    "responses": {
+      "$ref": "openapi.v3.ResponsesOrReferences"
+    },
+    "schemas": {
+      "$ref": "openapi.v3.SchemasOrReferences"
+    },
+    "securitySchemes": {
+      "$ref": "openapi.v3.SecuritySchemesOrReferences"
+    },
+    "specificationExtension": {
+      "type": "array",
+      "items": {
+        "$ref": "openapi.v3.NamedAny"
+      }
+    }
+  }
+}

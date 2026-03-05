@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "google.protobuf.Value",
+  "type": "object",
+  "description": "`Value` represents a dynamically typed value which can be either\n null, a number, a string, a boolean, a recursive struct value, or a\n list of values. A producer of value is expected to set one of these\n variants. Absence of any variant indicates an error.\n\n The JSON representation for `Value` is JSON value.Value | IMPORTANT: This message contains mutually exclusive field groups defined in x-oneof. Each x-oneof entry has a 'name' (the group name) and 'fields' (the field names). You must set exactly ONE field from each group, not multiple. Setting multiple fields from the same group will cause data loss.",
+  "properties": {
+    "boolValue": {
+      "type": "boolean",
+      "description": "Represents a boolean value."
+    },
+    "listValue": {
+      "$ref": "google.protobuf.ListValue",
+      "description": "Represents a repeated `Value`."
+    },
+    "nullValue": {
+      "$ref": "google.protobuf.NullValue",
+      "description": "Represents a null value."
+    },
+    "numberValue": {
+      "type": "number",
+      "description": "Represents a double value."
+    },
+    "stringValue": {
+      "type": "string",
+      "description": "Represents a string value."
+    },
+    "structValue": {
+      "$ref": "google.protobuf.Struct",
+      "description": "Represents a structured value."
+    }
+  },
+  "x-oneof": [
+    {
+      "name": "kind",
+      "fields": [
+        "nullValue",
+        "numberValue",
+        "stringValue",
+        "boolValue",
+        "structValue",
+        "listValue"
+      ]
+    }
+  ]
+}

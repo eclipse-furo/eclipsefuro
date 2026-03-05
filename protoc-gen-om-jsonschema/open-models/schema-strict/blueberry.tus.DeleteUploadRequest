@@ -1,0 +1,11 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "blueberry.tus.DeleteUploadRequest",
+  "type": "object",
+  "description": "/ Request to cancel (delete) an upload (HTTP DELETE).DeleteUploadRequest",
+  "properties": {
+    "uploadId": {
+      "type": "string"
+    }
+  }
+}

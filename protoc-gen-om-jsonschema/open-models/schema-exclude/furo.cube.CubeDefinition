@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "furo.cube.CubeDefinition",
+  "type": "object",
+  "description": "CubeDefinition is a definition of a cube.CubeDefinition",
+  "properties": {
+    "breadth": {
+      "type": "number",
+      "description": "the breadth / width of the cube in cm",
+      "maximum": 1000,
+      "minimum": 100,
+      "default": 100
+    },
+    "colour": {
+      "$ref": "furo.cube.Colour",
+      "description": "the color of the cube"
+    },
+    "height": {
+      "type": "number",
+      "description": "the height of the cube in cm",
+      "maximum": 1000,
+      "minimum": 100,
+      "default": 100
+    },
+    "length": {
+      "type": "number",
+      "description": "the length of the cube in cm",
+      "maximum": 1000,
+      "minimum": 100,
+      "default": 100
+    },
+    "material": {
+      "$ref": "furo.cube.Materials",
+      "description": "The material the cube is made of"
+    }
+  },
+  "required": [
+    "length",
+    "breadth",
+    "height"
+  ]
+}

@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "blueberry.llm.GenerateResponse",
+  "type": "object",
+  "description": "GenerateResponse contains a chunk of generated text or the final result.GenerateResponse",
+  "properties": {
+    "context": {
+      "type": "array",
+      "description": "DEPRECATED: Encoding of the conversation used in this response. Present on final message.",
+      "items": {
+        "type": "integer"
+      }
+    },
+    "createdAt": {
+      "$ref": "google.protobuf.Timestamp",
+      "description": "Time when the response chunk was created."
+    },
+    "done": {
+      "type": "boolean",
+      "description": "Indicates whether this is the final response object in the stream."
+    },
+    "doneReason": {
+      "type": "string",
+      "description": "Reason for termination (e.g., \"stop\", \"length\", \"unload\"). Present on final message."
+    },
+    "evalCount": {
+      "type": "integer",
+      "description": "Number of tokens in the response."
+    },
+    "evalDuration": {
+      "type": "integer",
+      "description": "Time spent generating the response (ns)."
+    },
+    "loadDuration": {
+      "type": "integer",
+      "description": "Time spent loading the model (ns)."
+    },
+    "model": {
+      "type": "string",
+      "description": "Model used for the response."
+    },
+    "promptEvalCount": {
+      "type": "integer",
+      "description": "Number of tokens in the prompt."
+    },
+    "promptEvalDuration": {
+      "type": "integer",
+      "description": "Time spent evaluating the prompt (ns)."
+    },
+    "response": {
+      "type": "string",
+      "description": "The current chunk of the model response text. Empty in the final message\n if the response was streamed; contains the full response when stream=false."
+    },
+    "totalDuration": {
+      "type": "integer",
+      "description": "Total time spent generating the response (ns)."
+    }
+  }
+}

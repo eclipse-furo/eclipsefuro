@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "blueberry.tus.Metadata",
+  "type": "object",
+  "description": "/ Base64‑encoded metadata value.\n/\n/ In the HTTP protocol the `Upload-Metadata` header is a\n/ comma‑separated list of *key* and *base64‑encoded value* pairs.\n/ The protobuf representation uses a simple map.Metadata",
+  "properties": {
+    "entries": {
+      "type": "object",
+      "description": "key → base64‑encoded value",
+      "additionalProperties": {
+        "type": "string"
+      }
+    }
+  }
+}

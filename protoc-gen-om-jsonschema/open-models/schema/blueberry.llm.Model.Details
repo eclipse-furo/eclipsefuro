@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "blueberry.llm.Model.Details",
+  "type": "object",
+  "description": "Details contains additional metadata about the model.Details",
+  "properties": {
+    "families": {
+      "type": "array",
+      "description": "Additional model families.",
+      "items": {
+        "type": "string"
+      }
+    },
+    "family": {
+      "type": "string",
+      "description": "Model family, e.g. \"llama\"."
+    },
+    "format": {
+      "type": "string",
+      "description": "Model format, e.g. \"ggml\", \"gguf\"."
+    },
+    "parameterSize": {
+      "type": "string",
+      "description": "Human-readable parameter count (e.g. \"13B\")."
+    },
+    "quantizationLevel": {
+      "type": "string",
+      "description": "Quantization level (e.g. \"q4_0\")."
+    }
+  }
+}

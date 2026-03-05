@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "blueberry.llm.ChatResponse",
+  "type": "object",
+  "description": "ChatResponse contains a streamed response chunk from chat completion.ChatResponse",
+  "properties": {
+    "createdAt": {
+      "$ref": "google.protobuf.Timestamp",
+      "description": "Time when the response was created."
+    },
+    "done": {
+      "type": "boolean",
+      "description": "True if this is the final chunk of the assistant reply."
+    },
+    "doneReason": {
+      "type": "string",
+      "description": "Reason for termination (e.g., \"stop\", \"length\", \"load\", \"unload\")."
+    },
+    "evalCount": {
+      "type": "integer",
+      "description": "Number of tokens in the response."
+    },
+    "evalDuration": {
+      "type": "integer",
+      "description": "Time spent generating the response (ns)."
+    },
+    "loadDuration": {
+      "type": "integer",
+      "description": "Time spent loading the model (ns)."
+    },
+    "message": {
+      "$ref": "blueberry.llm.Message",
+      "description": "Assistant's reply message."
+    },
+    "model": {
+      "type": "string",
+      "description": "Model ID used for the request."
+    },
+    "promptEvalCount": {
+      "type": "integer",
+      "description": "Number of tokens in the prompt."
+    },
+    "promptEvalDuration": {
+      "type": "integer",
+      "description": "Time spent evaluating the prompt (ns)."
+    },
+    "totalDuration": {
+      "type": "integer",
+      "description": "Total time spent generating the response (ns)."
+    }
+  }
+}

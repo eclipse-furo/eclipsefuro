@@ -1,0 +1,11 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "blueberry.tus.GetUploadStatusRequest",
+  "type": "object",
+  "description": "/ Request to obtain the status of an upload (HTTP HEAD).GetUploadStatusRequest",
+  "properties": {
+    "uploadId": {
+      "type": "string"
+    }
+  }
+}

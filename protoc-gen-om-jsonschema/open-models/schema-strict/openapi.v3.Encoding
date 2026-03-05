@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "openapi.v3.Encoding",
+  "type": "object",
+  "description": "A single encoding definition applied to a single schema property.Encoding",
+  "properties": {
+    "allowReserved": {
+      "type": "boolean"
+    },
+    "contentType": {
+      "type": "string"
+    },
+    "explode": {
+      "type": "boolean"
+    },
+    "headers": {
+      "$ref": "openapi.v3.HeadersOrReferences"
+    },
+    "specificationExtension": {
+      "type": "array",
+      "items": {
+        "$ref": "openapi.v3.NamedAny"
+      }
+    },
+    "style": {
+      "type": "string"
+    }
+  }
+}
