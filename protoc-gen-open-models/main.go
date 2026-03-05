@@ -5,10 +5,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
-	"log"
 	"os"
 	"os/exec"
+	"strings"
 
 	"github.com/bufbuild/protoplugin"
 	"github.com/eclipse-furo/eclipsefuro/protoc-gen-open-models/pkg/generator"
@@ -17,7 +16,15 @@ import (
 const version = "1.48.0"
 
 func main() {
-	const debugMode = false
+	// Check for --replay-request flag to replay a previously captured request
+	// (from protoc-gen-debugfile) without needing protoc.
+	replayRequest := ""
+	for _, arg := range os.Args[1:] {
+		if strings.HasPrefix(arg, "--replay-request=") {
+			replayRequest = strings.TrimPrefix(arg, "--replay-request=")
+			break
+		}
+	}
 
 	// osEnv is the os-based Env used in Main.
 	var osEnv = protoplugin.Env{
@@ -28,28 +35,13 @@ func main() {
 		Stderr:  os.Stderr,
 	}
 
-	if debugMode {
-		data, err := os.ReadFile("protocdata")
+	if replayRequest != "" {
+		data, err := os.ReadFile(replayRequest)
 		if err != nil {
-			// debug file does not exist, read from stream and write file
-			data, err = io.ReadAll(os.Stdin)
-			if err != nil {
-				log.Fatal(err)
-			}
-
-			writeError := os.WriteFile("protocdata", data, 0644)
-			if writeError != nil {
-				log.Fatal(writeError)
-			}
+			fmt.Fprintf(os.Stderr, "failed to read replay request file: %v\n", err)
+			os.Exit(1)
 		}
-		osEnv = protoplugin.Env{
-			Args:    os.Args[1:],
-			Environ: os.Environ(),
-			Stdin:   bytes.NewReader(data),
-			Stdout:  os.Stdout,
-			Stderr:  os.Stderr,
-		}
-
+		osEnv.Stdin = bytes.NewReader(data)
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())

@@ -61,11 +61,6 @@ var (
 	// Example: "mypackage.InternalMessage;mypackage.DebugInfo"
 	excludeMessages = ""
 
-	// debugDumpFile is the path to dump the CodeGeneratorRequest for debugging.
-	// When set via --om-jsonschema_opt=debug=/path/to/file, the raw request is saved.
-	// This is undocumented and intended for plugin development only.
-	debugDumpFile = ""
-
 	// Parsed exclusion lists (populated from the string options above)
 	excludedPackageSet map[string]bool
 	excludedMessageSet map[string]bool
@@ -147,24 +142,24 @@ type OneofGroup struct {
 // The plugin receives protobuf file descriptors from protoc via stdin and writes
 // generated JSON Schema files to the output directory specified by --om-jsonschema_out.
 //
-// Debug mode: Use --from-file=<path> to read a previously dumped request file
-// instead of stdin, enabling standalone debugging with IDE debuggers.
+// Debug mode: Use --replay-request=<path> to read a previously captured request file
+// (from protoc-gen-debugfile) instead of stdin, enabling standalone debugging with IDE debuggers.
 func main() {
-	// Check for standalone debug mode (--from-file flag)
+	// Check for standalone debug mode (--replay-request flag)
 	// This allows running the plugin directly without protoc for debugging
-	fromFile := ""
+	replayRequest := ""
 	for i, arg := range os.Args[1:] {
-		if strings.HasPrefix(arg, "--from-file=") {
-			fromFile = strings.TrimPrefix(arg, "--from-file=")
+		if strings.HasPrefix(arg, "--replay-request=") {
+			replayRequest = strings.TrimPrefix(arg, "--replay-request=")
 			// Remove this arg so it doesn't confuse the flag parser
 			os.Args = append(os.Args[:i+1], os.Args[i+2:]...)
 			break
 		}
 	}
 
-	if fromFile != "" {
+	if replayRequest != "" {
 		// Debug mode: read request from file instead of stdin
-		if err := runFromFile(fromFile); err != nil {
+		if err := runFromFile(replayRequest); err != nil {
 			fmt.Fprintf(os.Stderr, "error: %v\n", err)
 			os.Exit(1)
 		}
@@ -270,23 +265,6 @@ func runAsPlugin() {
 		os.Exit(1)
 	}
 
-	// Check for debug option in parameters
-	if req.Parameter != nil {
-		for _, param := range strings.Split(*req.Parameter, ",") {
-			parts := strings.SplitN(param, "=", 2)
-			if parts[0] == "debug" && len(parts) > 1 {
-				debugDumpFile = parts[1]
-				// Save the raw request to file
-				if err := os.WriteFile(debugDumpFile, input, 0644); err != nil {
-					fmt.Fprintf(os.Stderr, "failed to write debug file: %v\n", err)
-				} else {
-					fmt.Fprintf(os.Stderr, "Debug: saved CodeGeneratorRequest to %s\n", debugDumpFile)
-				}
-				break
-			}
-		}
-	}
-
 	// Set up command-line flags for plugin options.
 	// These are passed via --om-jsonschema_opt=option1,option2
 	var flags flag.FlagSet
@@ -295,7 +273,6 @@ func runAsPlugin() {
 	flags.BoolVar(&strictOneof, "strict_oneof", false, "Use description hint for oneof instead of x-oneof extension")
 	flags.StringVar(&excludePackages, "exclude_packages", "", "Semicolon-separated list of packages to exclude from generation")
 	flags.StringVar(&excludeMessages, "exclude_messages", "", "Semicolon-separated list of messages to exclude from generation")
-	flags.StringVar(&debugDumpFile, "debug", "", "Dump CodeGeneratorRequest to file for debugging (undocumented)")
 
 	// Configure and run the protoc plugin using the already-parsed request
 	opts := protogen.Options{ParamFunc: func(name, value string) error {
@@ -355,8 +332,6 @@ func applyOption(name, value string) {
 		excludePackages = value
 	case "exclude_messages":
 		excludeMessages = value
-	case "debug":
-		debugDumpFile = value
 	}
 }
 

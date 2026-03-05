@@ -8,25 +8,26 @@ Debugging protoc plugins is challenging because they receive input via stdin fro
 
 ### Step 1: Capture the CodeGeneratorRequest
 
-Use the `debug` option to dump the raw `CodeGeneratorRequest` protobuf to a file during a normal protoc run:
+Use `protoc-gen-debugfile` to capture the raw `CodeGeneratorRequest` protobuf to a file during a normal protoc run:
 
 ```bash
 protoc \
   -I./proto_dependencies \
   -I./proto \
+  --debugfile_out=. \
+  --debugfile_opt=/tmp/request.bin \
   --om-jsonschema_out=./open-models/schema \
-  --om-jsonschema_opt=debug=/tmp/request.bin \
   $(find proto -iname "*.proto")
 ```
 
-This saves the binary `CodeGeneratorRequest` to `/tmp/request.bin` before processing continues normally.
+This saves the binary `CodeGeneratorRequest` to `/tmp/request.bin`. Build `protoc-gen-debugfile` first if needed: `cd ../protoc-gen-debugfile && go build -o protoc-gen-debugfile .`
 
 ### Step 2: Run the Plugin Standalone
 
-Use `--from-file` to run the plugin directly without protoc, reading the saved request:
+Use `--replay-request` to run the plugin directly without protoc, reading the saved request:
 
 ```bash
-./protoc-gen-om-jsonschema --from-file=/tmp/request.bin
+./protoc-gen-om-jsonschema --replay-request=/tmp/request.bin
 ```
 
 This allows you to:
@@ -49,7 +50,7 @@ Create a launch configuration in `.vscode/launch.json`:
       "request": "launch",
       "mode": "auto",
       "program": "${workspaceFolder}",
-      "args": ["--from-file=/tmp/request.bin"]
+      "args": ["--replay-request=/tmp/request.bin"]
     }
   ]
 }
@@ -58,15 +59,13 @@ Create a launch configuration in `.vscode/launch.json`:
 ### IDE Debugging Example (GoLand/IntelliJ)
 
 1. Create a "Go Build" run configuration
-2. Set "Program arguments" to `--from-file=/tmp/request.bin`
+2. Set "Program arguments" to `--replay-request=/tmp/request.bin`
 3. Set breakpoints and run in debug mode
 
 ### How It Works
 
-1. When `debug=<path>` option is set, the plugin intercepts stdin before the protogen framework consumes it
-2. The raw bytes are written to the specified file
-3. The plugin continues normal processing
-4. Later, `--from-file=<path>` reads this file and feeds it to the plugin as if it came from protoc
+1. `protoc-gen-debugfile` runs as a separate protoc plugin and captures the raw `CodeGeneratorRequest` to a file
+2. Later, `--replay-request=<path>` reads this file and feeds it to the plugin as if it came from protoc
 
 This approach preserves the exact input that protoc would send, including all file descriptors, options, and parameters.
 
@@ -208,12 +207,13 @@ Supported properties:
 The file `testfiles/request.bin` is a captured `CodeGeneratorRequest` used by coverage tests. **Regenerate it after changing proto files:**
 
 ```bash
-go build -o protoc-gen-om-jsonschema .
+# Build protoc-gen-debugfile first (if not already built)
+cd ../protoc-gen-debugfile && go build -o protoc-gen-debugfile . && cd ../protoc-gen-om-jsonschema
+
 protoc \
-  --plugin=protoc-gen-om-jsonschema=./protoc-gen-om-jsonschema \
   -I./proto_dependencies -I./proto \
-  --om-jsonschema_out=./open-models/schema \
-  --om-jsonschema_opt=debug=./testfiles/request.bin \
+  --debugfile_out=. \
+  --debugfile_opt=./testfiles/request.bin \
   $(find proto -iname "*.proto")
 ```
 
