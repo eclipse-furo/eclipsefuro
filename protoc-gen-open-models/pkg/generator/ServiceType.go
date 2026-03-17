@@ -7,9 +7,9 @@ import (
 	"strings"
 	"text/template"
 
-	"github.com/eclipse-furo/eclipsefuro/protoc-gen-open-models/pkg/sourceinfo"
 	"github.com/iancoleman/strcase"
 	"google.golang.org/genproto/googleapis/api/annotations"
+	"google.golang.org/protobuf/compiler/protogen"
 )
 
 type ServiceType struct {
@@ -65,41 +65,48 @@ func (r *ServiceType) Render() string {
 	return res.String()
 }
 
-func prepareServiceType(service sourceinfo.ServiceInfo, imports ImportMap) ServiceType {
+func prepareServiceType(service *protogen.Service, imports ImportMap) ServiceType {
 
 	imports.AddImport("@furo/open-models/dist/Fetcher", "Fetcher", "")
 
+	pkg := string(service.Desc.ParentFile().Package())
+
 	// todo: implement fallback, when package is not set
-	pathSegments := strings.Split(service.Package, ".")
-	for i, _ := range pathSegments {
+	pathSegments := strings.Split(pkg, ".")
+	for i := range pathSegments {
 		pathSegments[i] = ".."
 	}
 
 	imports.AddImport(strings.Join(pathSegments, "/")+"/API_OPTIONS", "API_OPTIONS", "")
 
 	serviceType := ServiceType{
-		Name:            strcase.ToCamel(service.Name),
+		Name:            strcase.ToCamel(string(service.Desc.Name())),
 		Methods:         make([]ServiceMethods, 0, len(service.Methods)),
-		LeadingComments: multilineComment(service.Info.GetLeadingComments()),
-		Package:         service.Package,
+		LeadingComments: multilineComment(string(service.Comments.Leading)),
+		Package:         pkg,
 	}
 
 	for _, method := range service.Methods {
 
-		verb, path, err := extractPathAndPattern(method.HttpRule.ApiOptions)
+		apiOptions, _ := ExtractAPIOptions(method)
+		verb, path, err := extractPathAndPattern(apiOptions)
 		// on err, we have no REST endpoints
 		if err == nil {
+			body := ""
+			if apiOptions != nil {
+				body = cleanFieldName(apiOptions.GetBody())
+			}
 			serviceMethods := ServiceMethods{
-				Name:                PrefixReservedWords(method.Name),
-				RequestTypeLiteral:  resolveServiceType(method.Method.GetInputType(), service, imports),
-				ResponseTypeLiteral: resolveServiceType(method.Method.GetOutputType(), service, imports),
+				Name:                PrefixReservedWords(string(method.Desc.Name())),
+				RequestTypeLiteral:  resolveServiceType("."+string(method.Input.Desc.FullName()), service, imports),
+				ResponseTypeLiteral: resolveServiceType("."+string(method.Output.Desc.FullName()), service, imports),
 				Verb:                verb,
 				Path:                path,
-				Body:                cleanFieldName(method.HttpRule.ApiOptions.GetBody()),
-				LeadingComments:     multilineComment(method.Info.GetLeadingComments()),
-				TrailingComment:     method.Info.GetTrailingComments(),
-				CleintStreaming:     method.Method.ClientStreaming != nil,
-				ServerStreaming:     method.Method.ServerStreaming != nil,
+				Body:                body,
+				LeadingComments:     multilineComment(string(method.Comments.Leading)),
+				TrailingComment:     string(method.Comments.Trailing),
+				CleintStreaming:     method.Desc.IsStreamingClient(),
+				ServerStreaming:     method.Desc.IsStreamingServer(),
 			}
 
 			serviceType.Methods = append(serviceType.Methods, serviceMethods)
@@ -109,7 +116,7 @@ func prepareServiceType(service sourceinfo.ServiceInfo, imports ImportMap) Servi
 	return serviceType
 }
 
-func resolveServiceType(typeName string, service sourceinfo.ServiceInfo, imports ImportMap) string {
+func resolveServiceType(typeName string, service *protogen.Service, imports ImportMap) string {
 	// WELL KNOWN
 
 	if isWellKnownType(typeName) {
@@ -128,16 +135,14 @@ func resolveServiceType(typeName string, service sourceinfo.ServiceInfo, imports
 		}
 
 		primitiveType := WellKnownTypesMap[name]
-		// imports.AddImport("@furo/open-models/dist/index", name, "")
 		return primitiveType
 	}
 
-	// Any
-	// Empty
+	pkg := string(service.Desc.ParentFile().Package())
 
 	// regular message type
-	classNameIn := allTypes[typeName].Name
-	fieldPackage := strings.Split("."+service.Package, ".")
+	classNameIn := messageName(allTypes[typeName])
+	fieldPackage := strings.Split("."+pkg, ".")
 	rel, _ := filepath.Rel(strings.Join(fieldPackage, "/"), "/"+typenameToPath(typeName))
 	if !strings.HasPrefix(rel, "..") {
 		rel = "./" + rel

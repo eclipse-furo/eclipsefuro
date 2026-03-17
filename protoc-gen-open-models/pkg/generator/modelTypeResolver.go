@@ -4,8 +4,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/eclipse-furo/eclipsefuro/protoc-gen-open-models/pkg/sourceinfo"
-	"google.golang.org/protobuf/types/descriptorpb"
+	"google.golang.org/protobuf/compiler/protogen"
+	"google.golang.org/protobuf/reflect/protoreflect"
 )
 
 var WellKnownTypesMap = map[string]string{
@@ -79,22 +79,24 @@ var ModelTypesMap = map[string]string{
 	"TYPE_SINT64":   "SINT64",
 }
 
-func resolveModelType(imports ImportMap, field sourceinfo.FieldInfo) (
+func resolveModelType(imports ImportMap, field *protogen.Field) (
 	ModelType string, SetterCommand string, SetterType string, GetterType string, MapValueConstructor string, FieldConstructor string) {
-	tn := field.Field.GetTypeName()
-
-	fieldType := field.Field.Type.String()
+	tn := fieldTypeName(field)
+	fieldType := kindToTypeString[field.Desc.Kind()]
+	fieldPkg := string(field.Parent.Desc.ParentFile().Package())
+	parentName := string(field.Parent.Desc.Name())
+	isRepeated := field.Desc.IsList()
 
 	if t, ok := ModelTypesMap[fieldType]; ok {
 		primitiveType := ModelPrimitivesMap[fieldType]
-		if field.Field.Label.String() == "LABEL_REPEATED" {
+		if isRepeated {
 			imports.AddImport("@furo/open-models/dist/index", "ARRAY", "")
 			imports.AddImport("@furo/open-models/dist/index", ModelTypesMap[fieldType], "")
 			return "ARRAY<" + t + ", " + primitiveType + ">",
 				"__TypeSetter",
 				primitiveType + "[]",
 				"ARRAY<" + t + ", " + primitiveType + ">",
-				"", // ARRAY is uses a typesetter
+				"",
 				t
 		}
 		imports.AddImport("@furo/open-models/dist/index", ModelTypesMap[fieldType], "")
@@ -102,84 +104,74 @@ func resolveModelType(imports ImportMap, field sourceinfo.FieldInfo) (
 	}
 
 	// Maps
-	for _, nested := range field.Message.NestedType {
-		if nested.Options != nil {
-			if *nested.Options.MapEntry {
-				if strings.Title(field.Name)+"Entry" == *nested.Name {
-					// this is a map
-					maptype := "not_evaluated"
-					if !(*nested.Field[1].Type == descriptorpb.FieldDescriptorProto_TYPE_MESSAGE ||
-						*nested.Field[1].Type == descriptorpb.FieldDescriptorProto_TYPE_ENUM ||
-						*nested.Field[1].Type == descriptorpb.FieldDescriptorProto_TYPE_GROUP) {
-						t := nested.Field[1].Type.String()
-						maptype = t
-					} else {
-						// can be a message or a primitive
-						if *nested.Field[1].Type == descriptorpb.FieldDescriptorProto_TYPE_MESSAGE {
-							// message
-							m := *nested.Field[1].TypeName
-							className := allTypes[m].Name
-							maptype = m[1:len(m)]
-							// WELL KNOWN
+	if field.Desc.IsMap() {
+		valueField := field.Message.Fields[1] // map value is always index 1
+		valueKind := valueField.Desc.Kind()
 
-							if isWellKnownType(tn) {
-								ts := strings.Split(tn, ".")
-								typeName := ts[len(ts)-1]
-
-								// ANY
-								if typeName == "Any" {
-									imports.AddImport("@furo/open-models/dist/index", "type IAny", "")
-									imports.AddImport("@furo/open-models/dist/index", "ANY", "")
-									return "ANY", "__TypeSetter", "IAny", "ANY", "", "ANY"
-								}
-
-								primitiveMapType := ModelWellKnownTypesMap[typeName]
-
-								if typeName == "Empty" {
-									imports.AddImport("@furo/open-models/dist/index", "EMPTY", "")
-									return "EMPTY", "__TypeSetter", primitiveMapType, "EMPTY", "", "EMPTY"
-								}
-
-								// for model types return "MAP<string, STRING, string>;"
-								imports.AddImport("@furo/open-models/dist/index", "MAP", "")
-								imports.AddImport("@furo/open-models/dist/index", ModelTypesMap[primitiveMapType], "")
-								return "MAP<string," + ModelTypesMap[primitiveMapType] + "," + ModelPrimitivesMap[primitiveMapType] + ">",
-									"__TypeSetter",
-									"{ [key: string]: " + ModelPrimitivesMap[primitiveMapType] + " }",
-									"MAP<string," + ModelTypesMap[primitiveMapType] + "," + ModelPrimitivesMap[primitiveMapType] + ">",
-									ModelTypesMap[primitiveMapType],
-									"MAP<string," + ModelTypesMap[primitiveMapType] + "," + ModelPrimitivesMap[primitiveMapType] + ">"
-							}
-
-							fieldPackage := strings.Split("."+field.Package, ".")
-							rel, _ := filepath.Rel(strings.Join(fieldPackage, "/"), "/"+typenameToPath(m))
-							if !strings.HasPrefix(rel, "..") {
-								rel = "./" + rel
-							}
-							imports.AddImport(rel, PrefixReservedWords(className), fullQualifiedName(maptype, ""))
-							imports.AddImport("@furo/open-models/dist/index", "MAP", "")
-
-							return "MAP<string," + fullQualifiedName(maptype, "") + "," + fullQualifiedName(maptype, "") + ">",
-								"__TypeSetter",
-								"{ [key: string]: " + fullQualifiedName(maptype, "") + " }",
-								"MAP<string," + fullQualifiedName(maptype, "") + "," + fullQualifiedName(maptype, "") + ">",
-								fullQualifiedName(maptype, ""),
-								"MAP<string," + fullQualifiedName(maptype, "") + "," + fullQualifiedName(maptype, "") + ">"
-						}
-					}
-					// for model types return "MAP<string, STRING, string>;"
-					imports.AddImport("@furo/open-models/dist/index", "MAP", "")
-					imports.AddImport("@furo/open-models/dist/index", ModelTypesMap[maptype], "")
-					return "MAP<string," + ModelTypesMap[maptype] + "," + ModelPrimitivesMap[maptype] + ">",
-						"__TypeSetter",
-						"{ [key: string]: " + ModelPrimitivesMap[maptype] + " }",
-						"MAP<string," + ModelTypesMap[maptype] + "," + ModelPrimitivesMap[maptype] + ">",
-						ModelTypesMap[maptype],
-						"MAP<string," + ModelTypesMap[maptype] + "," + ModelPrimitivesMap[maptype] + ">"
-
-				}
-			}
+		if valueKind != protoreflect.MessageKind &&
+			valueKind != protoreflect.EnumKind &&
+			valueKind != protoreflect.GroupKind {
+			maptype := kindToTypeString[valueKind]
+			imports.AddImport("@furo/open-models/dist/index", "MAP", "")
+			imports.AddImport("@furo/open-models/dist/index", ModelTypesMap[maptype], "")
+			return "MAP<string," + ModelTypesMap[maptype] + "," + ModelPrimitivesMap[maptype] + ">",
+				"__TypeSetter",
+				"{ [key: string]: " + ModelPrimitivesMap[maptype] + " }",
+				"MAP<string," + ModelTypesMap[maptype] + "," + ModelPrimitivesMap[maptype] + ">",
+				ModelTypesMap[maptype],
+				"MAP<string," + ModelTypesMap[maptype] + "," + ModelPrimitivesMap[maptype] + ">"
 		}
+
+		if valueKind == protoreflect.MessageKind {
+			m := "." + string(valueField.Message.Desc.FullName())
+			className := messageName(allTypes[m])
+			maptype := string(m[1:])
+
+			// WELL KNOWN
+			if isWellKnownType(tn) {
+				ts := strings.Split(tn, ".")
+				typeName := ts[len(ts)-1]
+
+				if typeName == "Any" {
+					imports.AddImport("@furo/open-models/dist/index", "type IAny", "")
+					imports.AddImport("@furo/open-models/dist/index", "ANY", "")
+					return "ANY", "__TypeSetter", "IAny", "ANY", "", "ANY"
+				}
+
+				primitiveMapType := ModelWellKnownTypesMap[typeName]
+
+				if typeName == "Empty" {
+					imports.AddImport("@furo/open-models/dist/index", "EMPTY", "")
+					return "EMPTY", "__TypeSetter", primitiveMapType, "EMPTY", "", "EMPTY"
+				}
+
+				imports.AddImport("@furo/open-models/dist/index", "MAP", "")
+				imports.AddImport("@furo/open-models/dist/index", ModelTypesMap[primitiveMapType], "")
+				return "MAP<string," + ModelTypesMap[primitiveMapType] + "," + ModelPrimitivesMap[primitiveMapType] + ">",
+					"__TypeSetter",
+					"{ [key: string]: " + ModelPrimitivesMap[primitiveMapType] + " }",
+					"MAP<string," + ModelTypesMap[primitiveMapType] + "," + ModelPrimitivesMap[primitiveMapType] + ">",
+					ModelTypesMap[primitiveMapType],
+					"MAP<string," + ModelTypesMap[primitiveMapType] + "," + ModelPrimitivesMap[primitiveMapType] + ">"
+			}
+
+			fieldPackage := strings.Split("."+fieldPkg, ".")
+			rel, _ := filepath.Rel(strings.Join(fieldPackage, "/"), "/"+typenameToPath(m))
+			if !strings.HasPrefix(rel, "..") {
+				rel = "./" + rel
+			}
+			imports.AddImport(rel, PrefixReservedWords(className), fullQualifiedName(maptype, ""))
+			imports.AddImport("@furo/open-models/dist/index", "MAP", "")
+
+			return "MAP<string," + fullQualifiedName(maptype, "") + "," + fullQualifiedName(maptype, "") + ">",
+				"__TypeSetter",
+				"{ [key: string]: " + fullQualifiedName(maptype, "") + " }",
+				"MAP<string," + fullQualifiedName(maptype, "") + "," + fullQualifiedName(maptype, "") + ">",
+				fullQualifiedName(maptype, ""),
+				"MAP<string," + fullQualifiedName(maptype, "") + "," + fullQualifiedName(maptype, "") + ">"
+		}
+
+		return "MAP<string,unknown,unknown>", "__TypeSetter", "unknown", "unknown", "", "unknown"
 	}
 
 	if fieldType == "TYPE_MESSAGE" {
@@ -210,27 +202,24 @@ func resolveModelType(imports ImportMap, field sourceinfo.FieldInfo) (
 		}
 
 		// MESSAGE
-		t := field.Field.GetTypeName()
-		className := dotToCamel(allTypes[t].Name)
+		t := tn
+		className := dotToCamel(messageName(allTypes[t]))
 		if strings.HasPrefix(t, ".") {
 			t = t[1:]
 		}
-		if allTypes[tn].Package == field.Package {
-			// we are in the same package
-			// import is just ./[TypeName]
-			importFile := t[len(field.Package)+1:]
+		refPkg := string(allTypes[tn].Desc.ParentFile().Package())
+		if refPkg == fieldPkg {
+			importFile := t[len(fieldPkg)+1:]
 
-			// do not add import for the same file (direct recursion types)
 			t = fullQualifiedName(t, "")
-			if field.Message.GetName() != importFile {
+			if parentName != importFile {
 				imports.AddImport("./"+importFile, PrefixReservedWords(className), t)
 			}
 
-			if field.Field.Label.String() == "LABEL_REPEATED" {
+			if isRepeated {
 				imports.AddImport("@furo/open-models/dist/index", "ARRAY", "")
 
-				// if we are in the same package, we use the classNames
-				if field.Field.GetTypeName() == "."+field.Package+"."+field.Message.GetName() {
+				if tn == "."+fieldPkg+"."+parentName {
 					return "ARRAY<" + className + ", I" + className + ">",
 						"__TypeSetter",
 						"I" + className + "[]",
@@ -245,8 +234,8 @@ func resolveModelType(imports ImportMap, field sourceinfo.FieldInfo) (
 					"",
 					t
 			}
-			// if a field type equals the package name + message type we have a direct recusrion
-			if field.Field.GetTypeName() == "."+field.Package+"."+field.Message.GetName() {
+			// if a field type equals the package name + message type we have a direct recursion
+			if tn == "."+fieldPkg+"."+parentName {
 				imports.AddImport("@furo/open-models/dist/index", "RECURSION", "")
 				return "RECURSION<" + className + ", I" + className + ">",
 					"__TypeSetter",
@@ -256,7 +245,7 @@ func resolveModelType(imports ImportMap, field sourceinfo.FieldInfo) (
 					className
 			}
 			// deep recursion
-			if deepRecursionCheck(field.Field.GetTypeName()) {
+			if deepRecursionCheck(tn) {
 				imports.AddImport("@furo/open-models/dist/index", "RECURSION", "")
 				return "RECURSION<" + t + ", I" + t + ">",
 					"__TypeSetter",
@@ -269,24 +258,22 @@ func resolveModelType(imports ImportMap, field sourceinfo.FieldInfo) (
 			return t, "__TypeSetter", "I" + t, t, "", t
 		}
 
-		// find relative path to import target,
+		// find relative path to import target
 
 		if _, ok := projectFiles[typenameToPath(tn)]; ok {
-			// definition is in project root
-			ss := strings.Split(field.Field.GetTypeName(), ".")
+			ss := strings.Split(tn, ".")
 			importFile := ss[len(ss)-1]
-			fieldPackage := strings.Split("."+field.Package, ".")
+			fieldPackage := strings.Split("."+fieldPkg, ".")
 			rel, _ := filepath.Rel(strings.Join(fieldPackage, "/"), "/"+typenameToPath(tn))
 			if !strings.HasPrefix(rel, "..") {
 				rel = "./" + rel
 			}
 
-			// do not add import for the same file (direct recursion types)
 			t = fullQualifiedName(t, "")
-			if field.Message.GetName() != importFile {
+			if parentName != importFile {
 				imports.AddImport(rel, PrefixReservedWords(className), t)
 			}
-			if field.Field.Label.String() == "LABEL_REPEATED" {
+			if isRepeated {
 				imports.AddImport("@furo/open-models/dist/index", "ARRAY", "")
 
 				return "ARRAY<" + t + ", I" + t + ">",
@@ -299,39 +286,35 @@ func resolveModelType(imports ImportMap, field sourceinfo.FieldInfo) (
 			return t, "__TypeSetter", "I" + t, t, "", t
 		}
 
-		return field.Field.GetTypeName(), "__TypeSetter", "todo:resolve dependency", "???", "", field.Field.GetTypeName()
+		return tn, "__TypeSetter", "todo:resolve dependency", "???", "", tn
 	}
 	if fieldType == "TYPE_ENUM" {
-		t := field.Field.GetTypeName()
-		className := dotToCamel(allEnums[t].Name)
+		t := tn
+		className := dotToCamel(enumName(allEnums[t]))
 		if strings.HasPrefix(t, ".") {
 			t = t[1:]
 		}
-		if allEnums[tn].Package == field.Package {
-			// we are in the same package
-			// import is just ./[TypeName.Nested]
-			importFile := t[len(field.Package)+1:]
+		enumPkg := string(allEnums[tn].Desc.ParentFile().Package())
+		if enumPkg == fieldPkg {
+			importFile := t[len(fieldPkg)+1:]
 			fqn := fullQualifiedName(t, "")
 
 			imports.AddImport("@furo/open-models/dist/index", "ENUM", "")
 			imports.AddImport("./"+importFile, PrefixReservedWords(className), fqn)
-			// create correct importFile for nested types
 
 			return "ENUM<" + fqn + ">", "__TypeSetter", fqn, "ENUM<" + fqn + ">", "", "ENUM<" + fqn + ">"
 		}
 		if _, ok := projectFiles[typenameToPath(tn)]; ok {
-
-			fieldPackage := strings.Split("."+field.Package, ".")
+			fieldPackage := strings.Split("."+fieldPkg, ".")
 			rel, _ := filepath.Rel(strings.Join(fieldPackage, "/"), "/"+typenameToPath(tn))
 			if !strings.HasPrefix(rel, "..") {
 				rel = "./" + rel
 			}
 			fqn := fullQualifiedName(t, "")
 
-			// enum are without prefix
 			imports.AddImport("@furo/open-models/dist/index", "ENUM", "")
 			imports.AddImport(rel, PrefixReservedWords(className), fqn)
-			if field.Field.Label.String() == "LABEL_REPEATED" {
+			if isRepeated {
 				return "ENUM<" + fqn + ">", "__TypeSetter", fqn, "ENUM<" + fqn + ">", "", "ENUM<" + fqn + ">"
 			}
 			return "ENUM<" + fqn + ">", "__TypeSetter", fqn, "ENUM<" + fqn + ">", "", "ENUM<" + fqn + ">"
@@ -401,30 +384,38 @@ func deepRecursionCheckRecursion(startAt string, lookFor string, visited map[str
 		return false
 	}
 
-	// Break cycles (A -> B -> A, or longer ones)
 	if visited[startAt] {
 		return false
 	}
 	visited[startAt] = true
 
-	for _, info := range allTypes[startAt].FieldInfos {
-		if info.Field.GetTypeName() == lookFor {
-			return true
-		}
+	msg := allTypes[startAt]
+	if msg == nil {
+		return false
+	}
 
-		if info.Field.Type.String() == "TYPE_MESSAGE" && info.Field.Label.String() != "LABEL_REPEATED" {
-			return deepRecursionCheckRecursion(info.Field.GetTypeName(), lookFor, visited)
+	for _, f := range msg.Fields {
+		if f.Desc.Kind() == protoreflect.MessageKind {
+			fqn := "." + string(f.Message.Desc.FullName())
+			if fqn == lookFor {
+				return true
+			}
+			if !f.Desc.IsList() && !f.Desc.IsMap() {
+				if deepRecursionCheckRecursion(fqn, lookFor, visited) {
+					return true
+				}
+			}
 		}
-
 	}
 	return false
 }
 
 func typenameToPath(tn string) string {
-	info := allTypes[tn]
-	if info.ParentOfNested != nil {
-		ret := strings.Replace(info.ParentOfNested.Package, ".", "/", -1)
-		return ret + "/" + info.Name
+	msg := allTypes[tn]
+	if msg != nil {
+		pkg := string(msg.Desc.ParentFile().Package())
+		name := messageName(msg)
+		return strings.Replace(pkg, ".", "/", -1) + "/" + name
 	}
 	return strings.Replace(tn[1:], ".", "/", -1)
 }

@@ -2,10 +2,11 @@ package generator
 
 import (
 	"bytes"
-	"github.com/eclipse-furo/eclipsefuro/protoc-gen-open-models/pkg/sourceinfo"
-	"github.com/iancoleman/strcase"
 	"strings"
 	"text/template"
+
+	"github.com/iancoleman/strcase"
+	"google.golang.org/protobuf/compiler/protogen"
 )
 
 type LiteralType struct {
@@ -50,18 +51,19 @@ func (r *LiteralType) Render() string {
 	return res.String()
 }
 
-func prepareLiteralType(message *sourceinfo.MessageInfo, imports ImportMap) LiteralType {
+func prepareLiteralType(msg *protogen.Message, imports ImportMap) LiteralType {
+	name := messageName(msg)
 	literalType := LiteralType{
-		Name:            PrefixReservedWords(strcase.ToCamel(message.Name)),
+		Name:            PrefixReservedWords(strcase.ToCamel(name)),
 		Fields:          nil,
-		LeadingComments: multilineComment(message.Info.GetLeadingComments()),
+		LeadingComments: multilineComment(string(msg.Comments.Leading)),
 	}
-	for _, field := range message.FieldInfos {
+	for _, field := range msg.Fields {
 		literalType.Fields = append(literalType.Fields, LiteralFields{
-			LeadingComments: multilineComment(field.Info.GetLeadingComments()),
-			TrailingComment: field.Info.GetTrailingComments(),
-			FieldName:       field.Field.GetJsonName(), // todo: check preserve proto names
-			FieldProtoName:  field.Field.GetName(),     // todo: check  preserve proto names
+			LeadingComments: multilineComment(string(field.Comments.Leading)),
+			TrailingComment: string(field.Comments.Trailing),
+			FieldName:       field.Desc.JSONName(),
+			FieldProtoName:  string(field.Desc.Name()),
 			Type:            resolveInterfaceType(imports, field, "I"),
 		})
 	}

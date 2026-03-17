@@ -1,78 +1,102 @@
 package main
 
 import (
-	"bytes"
-	"context"
-	"errors"
 	"fmt"
+	"io"
 	"os"
-	"os/exec"
 	"strings"
 
-	"github.com/bufbuild/protoplugin"
 	"github.com/eclipse-furo/eclipsefuro/protoc-gen-open-models/pkg/generator"
+	"google.golang.org/protobuf/compiler/protogen"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/pluginpb"
 )
 
 const version = "1.48.0"
 
 func main() {
-	// Check for --replay-request flag to replay a previously captured request
-	// (from protoc-gen-debugfile) without needing protoc.
 	replayRequest := ""
-	for _, arg := range os.Args[1:] {
+	for i, arg := range os.Args[1:] {
 		if strings.HasPrefix(arg, "--replay-request=") {
 			replayRequest = strings.TrimPrefix(arg, "--replay-request=")
+			os.Args = append(os.Args[:i+1], os.Args[i+2:]...)
 			break
 		}
 	}
 
-	// osEnv is the os-based Env used in Main.
-	var osEnv = protoplugin.Env{
-		Args:    os.Args[1:],
-		Environ: os.Environ(),
-		Stdin:   os.Stdin,
-		Stdout:  os.Stdout,
-		Stderr:  os.Stderr,
-	}
-
 	if replayRequest != "" {
-		data, err := os.ReadFile(replayRequest)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "failed to read replay request file: %v\n", err)
+		if err := runFromFile(replayRequest); err != nil {
+			fmt.Fprintf(os.Stderr, "error: %v\n", err)
 			os.Exit(1)
 		}
-		osEnv.Stdin = bytes.NewReader(data)
+		return
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
-	if err := protoplugin.Run(ctx, osEnv, protoplugin.HandlerFunc(handle), protoplugin.WithVersion(version)); err != nil {
-		exitError := &exec.ExitError{}
-		if errors.As(err, &exitError) {
-			cancel()
-			// Swallow error message - it was printed via os.Stderr redirection.
-			os.Exit(exitError.ExitCode())
-		}
-		if errString := err.Error(); errString != "" {
-			_, _ = fmt.Fprintln(os.Stderr, errString)
-		}
-		cancel()
+	runAsPlugin()
+}
+
+func runFromFile(path string) error {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return fmt.Errorf("failed to read request file: %w", err)
+	}
+	return processRequest(data, os.Stdout)
+}
+
+func processRequest(data []byte, output io.Writer) error {
+	req := &pluginpb.CodeGeneratorRequest{}
+	if err := proto.Unmarshal(data, req); err != nil {
+		return fmt.Errorf("failed to unmarshal request: %w", err)
+	}
+
+	opts := protogen.Options{}
+	plugin, err := opts.New(req)
+	if err != nil {
+		return fmt.Errorf("failed to create plugin: %w", err)
+	}
+
+	plugin.SupportedFeatures = uint64(pluginpb.CodeGeneratorResponse_FEATURE_PROTO3_OPTIONAL)
+
+	generator.GenerateAll(plugin)
+
+	resp := plugin.Response()
+	out, err := proto.Marshal(resp)
+	if err != nil {
+		return fmt.Errorf("failed to marshal response: %w", err)
+	}
+	output.Write(out)
+	return nil
+}
+
+func runAsPlugin() {
+	input, err := io.ReadAll(os.Stdin)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "failed to read stdin: %v\n", err)
 		os.Exit(1)
 	}
 
-	cancel()
-}
+	req := &pluginpb.CodeGeneratorRequest{}
+	if err := proto.Unmarshal(input, req); err != nil {
+		fmt.Fprintf(os.Stderr, "failed to unmarshal request: %v\n", err)
+		os.Exit(1)
+	}
 
-func handle(
-	_ context.Context,
-	_ protoplugin.PluginEnv,
-	responseWriter protoplugin.ResponseWriter,
-	request protoplugin.Request,
-) error {
-	// Set the flag indicating that we support proto3 optionals. We don't even use them in this
-	// plugin, but protoc will error if it encounters a proto3 file with an optional but the
-	// plugin has not indicated it will support it.
-	responseWriter.SetFeatureProto3Optional()
-	generator.GenerateAll(responseWriter, request)
+	opts := protogen.Options{}
+	plugin, err := opts.New(req)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "failed to create plugin: %v\n", err)
+		os.Exit(1)
+	}
 
-	return nil
+	plugin.SupportedFeatures = uint64(pluginpb.CodeGeneratorResponse_FEATURE_PROTO3_OPTIONAL)
+
+	generator.GenerateAll(plugin)
+
+	resp := plugin.Response()
+	out, err := proto.Marshal(resp)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "failed to marshal response: %v\n", err)
+		os.Exit(1)
+	}
+	os.Stdout.Write(out)
 }

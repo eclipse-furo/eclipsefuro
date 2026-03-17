@@ -8,10 +8,9 @@ import (
 	"strings"
 	"text/template"
 
-	"github.com/bufbuild/protoplugin"
-	"github.com/eclipse-furo/eclipsefuro/protoc-gen-open-models/pkg/sourceinfo"
 	openapi_v3 "github.com/google/gnostic/openapiv3"
 	"github.com/iancoleman/strcase"
+	"google.golang.org/protobuf/compiler/protogen"
 )
 
 type ModelType struct {
@@ -118,7 +117,7 @@ export class {{.Name}} extends FieldNode {
     // Initialize the fields
 {{- range .Fields}}{{if .LeadingComments}}{{range $i, $commentLine := .LeadingComments}}
     // {{$commentLine}}{{end}}{{end}}
-    this._{{.FieldName}} = new {{.ModelType}}(undefined,{{if eq .Kind "TYPE_ENUM"}}{{.SetterType}}, {{.SetterType}}.{{.EnumDefault}}, {{end}} this, '{{.FieldName}}'); 
+    this._{{.FieldName}} = new {{.ModelType}}(undefined,{{if eq .Kind "TYPE_ENUM"}}{{.SetterType}}, {{.SetterType}}.{{.EnumDefault}}, {{end}} this, '{{.FieldName}}');
 {{end}}
 
 
@@ -129,7 +128,7 @@ export class {{.Name}} extends FieldNode {
       ).__meta.required = true;
     });
 
-    
+
     // Default values from openAPI annotations
     this.__defaultValues = {
 	{{- if .DefaultValues}}{{range $fn, $value := .DefaultValues}}
@@ -142,7 +141,7 @@ export class {{.Name}} extends FieldNode {
     } else {
       this.__fromLiteral(this.__defaultValues);
     }
-    
+
     // Set readonly fields after the init, so child nodes are readonly too
     [{{.ReadonlyFields}}].forEach(fieldName => {
       (
@@ -169,7 +168,7 @@ export class {{.Name}} extends FieldNode {
   }
 
   toLiteral(): I{{.Name}} {
-    return super.__toLiteral();
+    return super.__toLiteral() as I{{.Name}};
   }
 }
 
@@ -195,73 +194,79 @@ func (r *ModelType) Render() string {
 	return res.String()
 }
 
-func prepareModelType(message *sourceinfo.MessageInfo, imports ImportMap, si sourceinfo.SourceInfo, request protoplugin.Request) ModelType {
+func prepareModelType(msg *protogen.Message, imports ImportMap, openApiSchema *openapi_v3.Schema) ModelType {
 	reqFields := []string{}
-
 	readonlyFields := []string{}
+	name := messageName(msg)
+	pkg := string(msg.Desc.ParentFile().Package())
 
 	modelType := ModelType{
-		Name:            PrefixReservedWords(strcase.ToCamel(message.Name)),
+		Name:            PrefixReservedWords(strcase.ToCamel(name)),
 		Fields:          nil,
-		LeadingComments: multilineComment(message.Info.GetLeadingComments()),
-		MetaTypeName:    message.Package + "." + message.Name,
+		LeadingComments: multilineComment(string(msg.Comments.Leading)),
+		MetaTypeName:    pkg + "." + name,
 	}
 
 	defaultValuesMap := map[string]string{}
 
-	for _, field := range message.FieldInfos {
+	for _, field := range msg.Fields {
+		fieldName := string(field.Desc.Name())
+		jsonName := field.Desc.JSONName()
+		fieldType := kindToTypeString[field.Desc.Kind()]
+
 		// check if field is in required list
-		if message.OpenApiSchema != nil {
-			if slices.Contains(message.OpenApiSchema.Required, field.Name) {
-				reqFields = append(reqFields, field.Field.GetJsonName())
+		if openApiSchema != nil {
+			if slices.Contains(openApiSchema.Required, fieldName) {
+				reqFields = append(reqFields, jsonName)
 			}
 		}
 
 		enumDefault := ""
-		if field.Field.Type.String() == "TYPE_ENUM" {
-			enumDefault = resolveFirstEnumOptionForField(field, si, request)
+		if fieldType == "TYPE_ENUM" {
+			enumDefault = resolveFirstEnumOptionForField(field)
 		}
 		m, sc, st, gt, mapValueConstructor, fc := resolveModelType(imports, field)
+
+		openApiProps, _ := ExtractOpenApiFieldOptions(field)
+
 		var constraints string
 		fieldConstraints := FieldConstraints{}
-		if field.OpenApiProperties != nil {
+		if openApiProps != nil {
 			// check for readonly fields
-			if field.OpenApiProperties.ReadOnly {
-				readonlyFields = append(readonlyFields, field.Field.GetJsonName())
+			if openApiProps.ReadOnly {
+				readonlyFields = append(readonlyFields, jsonName)
 			}
-			if field.OpenApiProperties.Default != nil {
+			if openApiProps.Default != nil {
 				// collect the defaults
-
-				switch d := field.OpenApiProperties.Default.Oneof.(type) {
+				switch d := openApiProps.Default.Oneof.(type) {
 				case *openapi_v3.DefaultType_String_:
-					// check for json object or array
 					if (strings.Contains(d.String_, "[") || strings.Contains(d.String_, "{") || d.String_ == "null") && json.Valid([]byte(d.String_)) {
-						defaultValuesMap[field.Field.GetJsonName()] = d.String_
+						defaultValuesMap[jsonName] = d.String_
 					} else {
-						defaultValuesMap[field.Field.GetJsonName()] = "\"" + d.String_ + "\""
+						defaultValuesMap[jsonName] = "\"" + d.String_ + "\""
 					}
 
 					break
 				case *openapi_v3.DefaultType_Number:
-					defaultValuesMap[field.Field.GetJsonName()] = fmt.Sprintf("%f", d.Number)
+					defaultValuesMap[jsonName] = fmt.Sprintf("%f", d.Number)
 					break
 				case *openapi_v3.DefaultType_Boolean:
 					if d.Boolean {
-						defaultValuesMap[field.Field.GetJsonName()] = "true"
+						defaultValuesMap[jsonName] = "true"
 					} else {
-						defaultValuesMap[field.Field.GetJsonName()] = "false"
+						defaultValuesMap[jsonName] = "false"
 					}
 
 				}
 				// do not put the defaults in to the constraints
-				field.OpenApiProperties.Default = nil
+				openApiProps.Default = nil
 			}
 
-			c, err := json.Marshal(field.OpenApiProperties)
+			c, err := json.Marshal(openApiProps)
 			if err == nil {
 				json.Unmarshal(c, &fieldConstraints)
-				if message.OpenApiSchema != nil {
-					if slices.Contains(message.OpenApiSchema.Required, field.Name) {
+				if openApiSchema != nil {
+					if slices.Contains(openApiSchema.Required, fieldName) {
 						fieldConstraints.Required = true
 					}
 				}
@@ -269,8 +274,8 @@ func prepareModelType(message *sourceinfo.MessageInfo, imports ImportMap, si sou
 
 		} else {
 			// check for required constraints only, when no other constraints are given
-			if message.OpenApiSchema != nil {
-				if slices.Contains(message.OpenApiSchema.Required, field.Name) {
+			if openApiSchema != nil {
+				if slices.Contains(openApiSchema.Required, fieldName) {
 					fieldConstraints.Required = true
 				}
 			}
@@ -283,15 +288,15 @@ func prepareModelType(message *sourceinfo.MessageInfo, imports ImportMap, si sou
 		}
 
 		modelType.Fields = append(modelType.Fields, ModelFields{
-			LeadingComments:     multilineComment(field.Info.GetLeadingComments()),
-			TrailingComment:     field.Info.GetTrailingComments(),
-			FieldName:           field.Field.GetJsonName(), // todo: check preserve proto names
-			FieldProtoName:      field.Field.GetName(),     // todo: check  preserve proto names
+			LeadingComments:     multilineComment(string(field.Comments.Leading)),
+			TrailingComment:     string(field.Comments.Trailing),
+			FieldName:           jsonName,
+			FieldProtoName:      fieldName,
 			ModelType:           m,
 			SetterCommand:       sc,
 			SetterType:          st,
 			GetterType:          gt,
-			Kind:                field.Field.Type.String(),
+			Kind:                fieldType,
 			EnumDefault:         enumDefault,
 			MAPValueConstructor: mapValueConstructor,
 			FieldConstructor:    fc,
@@ -310,46 +315,9 @@ func prepareModelType(message *sourceinfo.MessageInfo, imports ImportMap, si sou
 	return modelType
 }
 
-func resolveFirstEnumOptionForField(field sourceinfo.FieldInfo, si sourceinfo.SourceInfo, request protoplugin.Request) string {
-	field.Field.Label.String()
-	var enumSi []sourceinfo.EnumInfo
-	// find the correct descriptor
-Exit:
-	for _, proto := range request.AllFileDescriptorProtos() {
-		for _, descriptorProto := range proto.EnumType {
-			if "."+proto.GetPackage()+"."+descriptorProto.GetName() == field.Field.GetTypeName() {
-				enumSi = sourceinfo.GetSourceInfo(proto).Enums
-				continue Exit
-			}
-
-		}
+func resolveFirstEnumOptionForField(field *protogen.Field) string {
+	if field.Enum != nil && len(field.Enum.Values) > 0 {
+		return string(field.Enum.Values[0].Desc.Name())
 	}
-
-	for _, info := range enumSi {
-		if "."+field.Package+"."+info.Name == field.Field.GetTypeName() {
-			return info.ValuesInfo[0].Name
-		}
-	}
-
-	if field.Field.DefaultValue != nil {
-		return *field.Field.DefaultValue
-	}
-
-	// field.Package           // google.protobuf
-	// field.Message.GetName() // FieldDescriptorProto
-	fqn := *field.Field.TypeName // .google.protobuf.FieldDescriptorProto.Type
-	ss := strings.Split(fqn, ".")
-	enumName := ss[len(ss)-1]
-
-	for _, enumType := range field.Message.EnumType {
-		if enumType.GetName() == enumName {
-			return enumType.Value[0].GetName()
-		}
-	}
-
-	if enum, ok := allEnums[fqn]; ok {
-		return enum.Message.Value[0].GetName()
-	}
-
-	return "/ ModelType.go line 327"
+	return ""
 }

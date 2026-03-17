@@ -1,6 +1,3 @@
-# github.com/bufbuild/protoplugin v0.0.0-20240911180120-7bb73e41a54a
-## explicit; go 1.21
-github.com/bufbuild/protoplugin
 # github.com/google/gnostic v0.7.0
 ## explicit; go 1.12
 github.com/google/gnostic/compiler
@@ -20,6 +17,7 @@ google.golang.org/genproto/googleapis/api
 google.golang.org/genproto/googleapis/api/annotations
 # google.golang.org/protobuf v1.34.2
 ## explicit; go 1.20
+google.golang.org/protobuf/compiler/protogen
 google.golang.org/protobuf/encoding/prototext
 google.golang.org/protobuf/encoding/protowire
 google.golang.org/protobuf/internal/descfmt
@@ -49,6 +47,7 @@ google.golang.org/protobuf/reflect/protoregistry
 google.golang.org/protobuf/runtime/protoiface
 google.golang.org/protobuf/runtime/protoimpl
 google.golang.org/protobuf/types/descriptorpb
+google.golang.org/protobuf/types/dynamicpb
 google.golang.org/protobuf/types/gofeaturespb
 google.golang.org/protobuf/types/known/anypb
 google.golang.org/protobuf/types/known/durationpb
