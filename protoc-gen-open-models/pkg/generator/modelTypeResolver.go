@@ -190,7 +190,7 @@ func resolveModelType(imports ImportMap, field *protogen.Field) (
 
 			primitiveType := ModelWellKnownTypesMap[typeName]
 			if primitiveType == "JSONObject" {
-				imports.AddImport("@furo/open-models/dist/index", "JSONObject", "")
+				imports.AddImport("@furo/open-models/dist/index", "type JSONObject", "")
 			}
 			if typeName == "Empty" {
 				imports.AddImport("@furo/open-models/dist/index", "EMPTY", "")
