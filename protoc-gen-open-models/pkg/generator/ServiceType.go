@@ -142,6 +142,7 @@ func resolveServiceTypeLiteral(typeName string, service *protogen.Service, impor
 		}
 
 		primitiveType := WellKnownTypesMap[name]
+		imports.AddImport("@furo/open-models/dist/index", "type "+primitiveType, "")
 		return primitiveType
 	}
 

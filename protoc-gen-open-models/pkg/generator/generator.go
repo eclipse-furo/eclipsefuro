@@ -74,46 +74,46 @@ var kindToTypeString = map[protoreflect.Kind]string{
 func GenerateAll(plugin *protogen.Plugin) {
 	// Pass 1: build global registries
 	for _, file := range plugin.Files {
-		filePath := filepath.Dir(file.Desc.Path())
 		pkg := string(file.Desc.Package())
+		pkgPath := strings.Replace(pkg, ".", "/", -1)
 
 		// Collect top-level enums
 		for _, enum := range file.Enums {
 			name := enumName(enum)
-			projectFiles[path.Join(filePath, name)] = "ENUM"
+			projectFiles[pkgPath+"/"+name] = "ENUM"
 			allEnums["."+pkg+"."+name] = enum
 		}
 
 		// Collect top-level messages and their nested types
 		for _, msg := range file.Messages {
 			name := messageName(msg)
-			projectFiles[path.Join(filePath, name)] = "MESSAGE"
+			projectFiles[pkgPath+"/"+name] = "MESSAGE"
 			allTypes["."+pkg+"."+name] = msg
 
 			// Inline enums inside this message
 			for _, nestedEnum := range msg.Enums {
 				eName := enumName(nestedEnum)
-				projectFiles[path.Join(filePath, eName)] = "ENUM"
+				projectFiles[pkgPath+"/"+eName] = "ENUM"
 				allEnums["."+pkg+"."+eName] = nestedEnum
 			}
 
 			// Nested messages (1 level)
 			for _, nestedMsg := range msg.Messages {
 				nName := messageName(nestedMsg)
-				projectFiles[path.Join(filePath, nName)] = "MESSAGE"
+				projectFiles[pkgPath+"/"+nName] = "MESSAGE"
 				allTypes["."+pkg+"."+nName] = nestedMsg
 
 				// Nested messages (2 levels deep)
 				for _, nestedNestedMsg := range nestedMsg.Messages {
 					nnName := messageName(nestedNestedMsg)
-					projectFiles[path.Join(filePath, nnName)] = "MESSAGE"
+					projectFiles[pkgPath+"/"+nnName] = "MESSAGE"
 					allTypes["."+pkg+"."+nnName] = nestedNestedMsg
 				}
 
 				// Inline enums inside nested messages
 				for _, nestedEnum := range nestedMsg.Enums {
 					eName := enumName(nestedEnum)
-					projectFiles[path.Join(filePath, eName)] = "ENUM"
+					projectFiles[pkgPath+"/"+eName] = "ENUM"
 					allEnums["."+pkg+"."+eName] = nestedEnum
 				}
 			}
@@ -121,7 +121,7 @@ func GenerateAll(plugin *protogen.Plugin) {
 
 		// Collect services
 		for _, service := range file.Services {
-			projectFiles[path.Join(filePath, string(service.Desc.Name()))] = "SERVICE"
+			projectFiles[pkgPath+"/"+string(service.Desc.Name())] = "SERVICE"
 		}
 	}
 
