@@ -86,8 +86,9 @@ var ModelTypeTemplate = `/**
  */
 export class {{.Name}} extends FieldNode {
 {{range .Fields}}
-  {{if .LeadingComments}}{{range $i, $commentLine := .LeadingComments}}
-  // {{$commentLine}}{{end}}{{end}}
+  /**{{if .LeadingComments}}{{range $i, $commentLine := .LeadingComments}}
+   *{{$commentLine}}{{end}}{{end}}
+   **/
   private _{{.FieldName}}: {{.ModelType}};{{if .TrailingComment}} // {{.TrailingComment}}{{end}}
 {{end}}
  public __defaultValues: I{{.Name}};
@@ -115,8 +116,11 @@ export class {{.Name}} extends FieldNode {
     ];
 
     // Initialize the fields
-{{- range .Fields}}{{if .LeadingComments}}{{range $i, $commentLine := .LeadingComments}}
-    // {{$commentLine}}{{end}}{{end}}
+    // ---------------------
+{{ range .Fields}}
+   /**{{if .LeadingComments}}{{range $i, $commentLine := .LeadingComments}}
+    * {{$commentLine}}{{end}}{{end}}
+    **/
     this._{{.FieldName}} = new {{.ModelType}}(undefined,{{if eq .Kind "TYPE_ENUM"}}{{.SetterType}}, {{.SetterType}}.{{.EnumDefault}}, {{end}} this, '{{.FieldName}}');
 {{end}}
 
@@ -152,18 +156,23 @@ export class {{.Name}} extends FieldNode {
     this.__meta.isPristine = true;
   }
 {{range .Fields}}
-{{if .LeadingComments}}{{range $i, $commentLine := .LeadingComments}}
-  // {{$commentLine}}{{end}}{{end}}
+  /**{{if .LeadingComments}}{{range $i, $commentLine := .LeadingComments}}
+   * {{$commentLine}}{{end}}{{end}}
+   * The getter receives the FieldNode
+   **/
   public get {{.FieldName}}(): {{.GetterType}} {
     return this._{{.FieldName}};
   }
 
+  /**
+   * The setter receives {{.SetterType | bt}}
+   **/
   public set {{.FieldName}}(v: {{.SetterType}}) {
     this.{{.SetterCommand}}(this._{{.FieldName}}, v);
   }
 {{end}}
 
-  fromLiteral(data: I{{.Name}}) {
+  fromLiteral(data: I{{.Name}}): void {
     super.__fromLiteral(data);
   }
 
@@ -180,6 +189,7 @@ func (r *ModelType) Render() string {
 	t, err := template.New("ModelType").
 		Funcs(template.FuncMap{
 			"desc": buildDescriptionField,
+			"bt":   func(s string) string { return "`" + s + "`" },
 		}).
 		Parse(ModelTypeTemplate)
 	if err != nil {

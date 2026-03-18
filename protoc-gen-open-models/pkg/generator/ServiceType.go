@@ -21,8 +21,10 @@ type ServiceType struct {
 
 type ServiceMethods struct {
 	Name                string // GetList
-	RequestTypeLiteral  string //LFuroCubeCubeServiceGetRequest
-	ResponseTypeLiteral string // LFuroCubeCubeServiceGetResponse
+	RequestTypeLiteral  string // IFuroCubeCubeServiceGetRequest
+	ResponseTypeLiteral string // IFuroCubeCubeServiceGetResponse
+	RequestType         string // FuroCubeCubeServiceGetRequest
+	ResponseType        string // FuroCubeCubeServiceGetResponse
 	Verb                string // GET
 	Path                string // /v1/cubes/{cube_id}
 	Body                string // "" | "*" | "data"
@@ -32,17 +34,20 @@ type ServiceMethods struct {
 	ServerStreaming     bool
 }
 
-var ServiceTemplate = `{{if .LeadingComments}}{{range $i, $commentLine := .LeadingComments}}
-// {{$commentLine}}{{end}}{{end}}
-
+var ServiceTemplate = `/**{{if .LeadingComments}}{{range $i, $commentLine := .LeadingComments}}
+ *{{$commentLine}}{{end}}{{end}}
+ **/
 export class {{.Name}} {
-
-{{range $i, $method := .Methods}}{{if .LeadingComments}}{{range $i, $commentLine := .LeadingComments}}
-  // {{$commentLine}}{{end}}{{end}}
-  public {{.Name}}: Fetcher<{{.RequestTypeLiteral}},{{if .ServerStreaming}}AsyncIterable<{{.ResponseTypeLiteral}}> | {{end}}{{.ResponseTypeLiteral}}> = new Fetcher<{{.RequestTypeLiteral}},{{if .ServerStreaming}}AsyncIterable<{{.ResponseTypeLiteral}}> | {{end}}{{.ResponseTypeLiteral}}>(
+{{range $i, $method := .Methods}}
+  /**{{if .LeadingComments}}{{range $i, $commentLine := .LeadingComments}}
+   * {{$commentLine}}{{end}}{{end}}
+   */
+  public {{.Name}}: StrictFetcher<{{.RequestTypeLiteral}},{{if .ServerStreaming}}AsyncIterable<{{.ResponseTypeLiteral}}> | {{end}}{{.ResponseTypeLiteral}}> = new StrictFetcher<{{.RequestTypeLiteral}},{{if .ServerStreaming}}AsyncIterable<{{.ResponseTypeLiteral}}> | {{end}}{{.ResponseTypeLiteral}}>(
     API_OPTIONS,
     '{{.Verb}}',
-    '{{.Path}}',{{if .Body}}
+    '{{.Path}}',
+     {{.RequestType}},
+     {{.ResponseType}}{{if .Body}},
     '{{.Body}}'{{end}}
   ); {{if .TrailingComment}}// {{.TrailingComment}}{{end}}
 {{end}}
@@ -67,7 +72,7 @@ func (r *ServiceType) Render() string {
 
 func prepareServiceType(service *protogen.Service, imports ImportMap) ServiceType {
 
-	imports.AddImport("@furo/open-models/dist/Fetcher", "Fetcher", "")
+	imports.AddImport("@furo/open-models/dist/StrictFetcher", "StrictFetcher", "")
 
 	pkg := string(service.Desc.ParentFile().Package())
 
@@ -98,8 +103,10 @@ func prepareServiceType(service *protogen.Service, imports ImportMap) ServiceTyp
 			}
 			serviceMethods := ServiceMethods{
 				Name:                PrefixReservedWords(string(method.Desc.Name())),
-				RequestTypeLiteral:  resolveServiceType("."+string(method.Input.Desc.FullName()), service, imports),
-				ResponseTypeLiteral: resolveServiceType("."+string(method.Output.Desc.FullName()), service, imports),
+				RequestTypeLiteral:  resolveServiceTypeLiteral("."+string(method.Input.Desc.FullName()), service, imports),
+				ResponseTypeLiteral: resolveServiceTypeLiteral("."+string(method.Output.Desc.FullName()), service, imports),
+				RequestType:         resolveServiceType("."+string(method.Input.Desc.FullName()), service, imports),
+				ResponseType:        resolveServiceType("."+string(method.Output.Desc.FullName()), service, imports),
 				Verb:                verb,
 				Path:                path,
 				Body:                body,
@@ -116,7 +123,7 @@ func prepareServiceType(service *protogen.Service, imports ImportMap) ServiceTyp
 	return serviceType
 }
 
-func resolveServiceType(typeName string, service *protogen.Service, imports ImportMap) string {
+func resolveServiceTypeLiteral(typeName string, service *protogen.Service, imports ImportMap) string {
 	// WELL KNOWN
 
 	if isWellKnownType(typeName) {
@@ -149,6 +156,41 @@ func resolveServiceType(typeName string, service *protogen.Service, imports Impo
 	}
 	imports.AddImport(rel, "type I"+PrefixReservedWords(classNameIn), "I"+fullQualifiedTypeName(typeName))
 	return "I" + fullQualifiedTypeName(typeName)
+}
+
+func resolveServiceType(typeName string, service *protogen.Service, imports ImportMap) string {
+	// WELL KNOWN
+
+	if isWellKnownType(typeName) {
+		ts := strings.Split(typeName, ".")
+		name := ts[len(ts)-1]
+
+		// ANY
+		if name == "Any" {
+			imports.AddImport("@furo/open-models/dist/index", "ANY", "")
+			return "ANY"
+		}
+
+		// Empty
+		if name == "Empty" {
+			return "Record<string, never>"
+		}
+
+		primitiveType := WellKnownTypesMap[name]
+		return primitiveType
+	}
+
+	pkg := string(service.Desc.ParentFile().Package())
+
+	// regular message type
+	classNameIn := messageName(allTypes[typeName])
+	fieldPackage := strings.Split("."+pkg, ".")
+	rel, _ := filepath.Rel(strings.Join(fieldPackage, "/"), "/"+typenameToPath(typeName))
+	if !strings.HasPrefix(rel, "..") {
+		rel = "./" + rel
+	}
+	imports.AddImport(rel, PrefixReservedWords(classNameIn), fullQualifiedTypeName(typeName))
+	return fullQualifiedTypeName(typeName)
 }
 
 func baseTypeName(typeName string) string {
