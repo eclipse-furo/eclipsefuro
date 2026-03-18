@@ -173,11 +173,12 @@ func resolveServiceType(typeName string, service *protogen.Service, imports Impo
 
 		// Empty
 		if name == "Empty" {
-			return "Record<string, never>"
+			imports.AddImport("@furo/open-models/dist/index", "EMPTY", "")
+			return "EMPTY"
 		}
 
-		primitiveType := WellKnownTypesMap[name]
-		return primitiveType
+		imports.AddImport("@furo/open-models/dist/index", name, "")
+		return name
 	}
 
 	pkg := string(service.Desc.ParentFile().Package())
