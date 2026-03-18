@@ -106,6 +106,35 @@ Uses `google.golang.org/protobuf/compiler/protogen` framework. Everything in two
 - Proto3 zero-value limitation: unsigned types auto-get `minimum: 0`; use `format: "positive"` annotation for signed types
 - Version is hardcoded as `const version` in each plugin's `main.go`
 
-## When Asked "Question:"
+## Debugging with a DEBUGFILE
 
-Do not modify any files — only answer the question.
+When investigating code generation bugs in `protoc-gen-open-models` or `protoc-gen-om-jsonschema`, ask the user to supply a DEBUGFILE (`/tmp/request.bin`). This file captures the exact `CodeGeneratorRequest` (all proto descriptors, options, and file list) and allows reproducing the issue without the user's full proto/protoc setup.
+
+**Generating a DEBUGFILE**: Build `protoc-gen-debugfile` and add it alongside the normal plugins in the protoc invocation:
+```bash
+cd protoc-gen-debugfile && go build -o protoc-gen-debugfile .
+```
+```bash
+protoc \
+  --debugfile_out=. \
+  --debugfile_opt=/tmp/request.bin \
+  --open-models_out=./generated \
+  -I./proto_dependencies -I./proto \
+  $(find proto -iname "*.proto")
+```
+
+**Replaying a DEBUGFILE**:
+```bash
+cd protoc-gen-open-models
+go build -o protoc-gen-open-models .
+./protoc-gen-open-models --replay-request=/tmp/request.bin
+```
+
+For `protoc-gen-om-jsonschema`, the same approach works:
+```bash
+cd protoc-gen-om-jsonschema
+go build -o protoc-gen-om-jsonschema .
+./protoc-gen-om-jsonschema --replay-request=/tmp/request.bin
+```
+
+When a user reports a code generation bug, always ask them to provide this file — it is the fastest path to reproducing and fixing the issue.
