@@ -214,6 +214,58 @@ protoc \
   your_proto_files.proto
 ```
 
+### file_extension
+
+By default, generated schema files have no file extension (e.g., `furo.cube.Colour`). Use `file_extension` to append an extension to all generated filenames.
+
+```bash
+# Append .json extension
+protoc \
+  --om-jsonschema_out=./output \
+  --om-jsonschema_opt=file_extension=.json \
+  your_proto_files.proto
+
+# Append .schema.json extension
+protoc \
+  --om-jsonschema_out=./output \
+  --om-jsonschema_opt=file_extension=.schema.json \
+  your_proto_files.proto
+```
+
+**Default:** No extension (backward compatible). Output filenames are just the fully qualified message name (e.g., `google.protobuf.Any`).
+
+**With `file_extension=.json`:** Output filenames become `google.protobuf.Any.json`, `mypackage.MyMessage.json`, etc.
+
+### ref_prefix
+
+By default, `$id` and `$ref` values use the fully qualified protobuf name (e.g., `google.protobuf.Any`). Use `ref_prefix` to prepend a URI prefix to all `$id` and `$ref` values while keeping output filenames local.
+
+```bash
+# Generate schemas with full URI identifiers
+protoc \
+  --om-jsonschema_out=./schemas \
+  --om-jsonschema_opt=ref_prefix=https://example.com/schemas/,file_extension=.json \
+  -I./proto your_proto_files.proto
+```
+
+This produces files like `schemas/google.protobuf.Any.json` containing:
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/schemas/google.protobuf.Any.json",
+  ...
+}
+```
+
+And `$ref` values like:
+```json
+{
+  "$ref": "https://example.com/schemas/furo.cube.CubeDefinition.json"
+}
+```
+
+**Default:** No prefix (backward compatible). `$id` and `$ref` values are just the fully qualified name plus any file extension.
+
 ### Combining options
 
 Multiple options can be combined with commas:
@@ -221,7 +273,7 @@ Multiple options can be combined with commas:
 ```bash
 protoc \
   --om-jsonschema_out=./output \
-  --om-jsonschema_opt=strict_any,strict_map,strict_oneof \
+  --om-jsonschema_opt=strict_any,strict_map,strict_oneof,file_extension=.json \
   your_proto_files.proto
 ```
 

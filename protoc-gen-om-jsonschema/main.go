@@ -16,6 +16,7 @@
 //   - strict_oneof: Use description hints for oneof instead of x-oneof extension
 //   - exclude_packages: Semicolon-separated list of packages to exclude (e.g., "google.api;openapi.v3")
 //   - exclude_messages: Semicolon-separated list of messages to exclude (e.g., "mypackage.Internal")
+//   - ref_prefix:    URI prefix for $id and $ref values (e.g., "https://example.com/schemas/")
 package main
 
 import (
@@ -60,6 +61,16 @@ var (
 	// excludeMessages is a semicolon-separated list of fully qualified message names to exclude.
 	// Example: "mypackage.InternalMessage;mypackage.DebugInfo"
 	excludeMessages = ""
+
+	// fileExtension is an optional file extension to append to generated schema filenames.
+	// Default is "" (no extension, backward compatible). Example: ".json" or ".schema.json"
+	fileExtension = ""
+
+	// refPrefix is an optional URI prefix prepended to $id and $ref values in generated schemas.
+	// This allows schemas to use full URIs as identifiers while keeping output filenames local.
+	// Default is "" (no prefix, backward compatible). Example: "https://example.com/schemas/"
+	// Usage: --om-jsonschema_opt=ref_prefix=https://example.com/schemas/
+	refPrefix = ""
 
 	// Parsed exclusion lists (populated from the string options above)
 	excludedPackageSet map[string]bool
@@ -201,6 +212,8 @@ func processRequest(data []byte, output io.Writer) error {
 	strictOneof = false
 	excludePackages = ""
 	excludeMessages = ""
+	fileExtension = ""
+	refPrefix = ""
 	excludedPackageSet = nil
 	excludedMessageSet = nil
 
@@ -273,6 +286,8 @@ func runAsPlugin() {
 	flags.BoolVar(&strictOneof, "strict_oneof", false, "Use description hint for oneof instead of x-oneof extension")
 	flags.StringVar(&excludePackages, "exclude_packages", "", "Semicolon-separated list of packages to exclude from generation")
 	flags.StringVar(&excludeMessages, "exclude_messages", "", "Semicolon-separated list of messages to exclude from generation")
+	flags.StringVar(&fileExtension, "file_extension", "", "File extension to append to generated schema filenames (e.g., .json)")
+	flags.StringVar(&refPrefix, "ref_prefix", "", "URI prefix for $id and $ref values (e.g., https://example.com/schemas/)")
 
 	// Configure and run the protoc plugin using the already-parsed request
 	opts := protogen.Options{ParamFunc: func(name, value string) error {
@@ -332,6 +347,10 @@ func applyOption(name, value string) {
 		excludePackages = value
 	case "exclude_messages":
 		excludeMessages = value
+	case "file_extension":
+		fileExtension = value
+	case "ref_prefix":
+		refPrefix = value
 	}
 }
 
@@ -447,7 +466,7 @@ func generateMessageSchema(gen *protogen.Plugin, file *protogen.File, msg *proto
 	// All messages are represented as JSON Schema "object" types.
 	schema := &JSONSchema{
 		Schema:     "https://json-schema.org/draft/2020-12/schema",
-		ID:         fullName,
+		ID:         refPrefix + fullName + fileExtension,
 		Type:       "object",
 		Properties: make(map[string]*JSONSchema),
 	}
@@ -508,8 +527,8 @@ func generateMessageSchema(gen *protogen.Plugin, file *protogen.File, msg *proto
 	}
 
 	// Create the output file with the fully qualified message name.
-	// The file has no extension - just the message name like "google.protobuf.Any".
-	filename := fullName
+	// Optionally appends a file extension (e.g., ".json") if configured.
+	filename := fullName + fileExtension
 	outputFile := gen.NewGeneratedFile(filename, "")
 
 	// Marshal the schema to pretty-printed JSON.
@@ -614,7 +633,7 @@ func generateAnySchema(gen *protogen.Plugin, fullName string, msg *protogen.Mess
 
 	schema := &JSONSchema{
 		Schema:               "https://json-schema.org/draft/2020-12/schema",
-		ID:                   fullName,
+		ID:                   refPrefix + fullName + fileExtension,
 		Type:                 "object",
 		Description:          "A container for any message type. The @type field identifies which message type is contained, and the remaining fields are the actual message data. Set @type to the $id of the target schema and include all fields from that schema.",
 		Properties:           make(map[string]*JSONSchema),
@@ -630,7 +649,7 @@ func generateAnySchema(gen *protogen.Plugin, fullName string, msg *protogen.Mess
 	}
 
 	// Write the schema file
-	outputFile := gen.NewGeneratedFile(fullName, "")
+	outputFile := gen.NewGeneratedFile(fullName+fileExtension, "")
 
 	data, err := json.MarshalIndent(schema, "", "  ")
 	if err != nil {
@@ -676,7 +695,7 @@ func generateEnumSchema(gen *protogen.Plugin, file *protogen.File, enum *protoge
 
 	schema := &JSONSchema{
 		Schema: "https://json-schema.org/draft/2020-12/schema",
-		ID:     fullName,
+		ID:     refPrefix + fullName + fileExtension,
 		Type:   "string",
 	}
 
@@ -693,7 +712,7 @@ func generateEnumSchema(gen *protogen.Plugin, file *protogen.File, enum *protoge
 	}
 
 	// Write the schema file
-	filename := fullName
+	filename := fullName + fileExtension
 	outputFile := gen.NewGeneratedFile(filename, "")
 
 	data, err := json.MarshalIndent(schema, "", "  ")
@@ -755,12 +774,12 @@ func convertField(field *protogen.Field) *JSONSchema {
 		if valueField.Message != nil {
 			// Map value is a message type - reference it
 			schema.AdditionalProperties = &JSONSchema{
-				Ref: string(valueField.Message.Desc.FullName()),
+				Ref: refPrefix + string(valueField.Message.Desc.FullName()) + fileExtension,
 			}
 		} else if valueField.Enum != nil {
 			// Map value is an enum type - reference it
 			schema.AdditionalProperties = &JSONSchema{
-				Ref: string(valueField.Enum.Desc.FullName()),
+				Ref: refPrefix + string(valueField.Enum.Desc.FullName()) + fileExtension,
 			}
 		} else {
 			// Map value is a scalar type - inline it
@@ -785,9 +804,9 @@ func convertField(field *protogen.Field) *JSONSchema {
 
 		// Set the items schema based on the element type
 		if field.Message != nil {
-			itemSchema.Ref = string(field.Message.Desc.FullName())
+			itemSchema.Ref = refPrefix + string(field.Message.Desc.FullName()) + fileExtension
 		} else if field.Enum != nil {
-			itemSchema.Ref = string(field.Enum.Desc.FullName())
+			itemSchema.Ref = refPrefix + string(field.Enum.Desc.FullName()) + fileExtension
 		} else {
 			itemSchema.Type = protoKindToJSONType(field.Desc.Kind())
 		}
@@ -802,14 +821,14 @@ func convertField(field *protogen.Field) *JSONSchema {
 	// Output for MyMessage field:
 	//   {"$ref": "package.MyMessage"}
 	if field.Message != nil {
-		schema.Ref = string(field.Message.Desc.FullName())
+		schema.Ref = refPrefix + string(field.Message.Desc.FullName()) + fileExtension
 		return schema
 	}
 
 	// Handle singular enum-typed fields.
 	// These reference the enum schema by its $id.
 	if field.Enum != nil {
-		schema.Ref = string(field.Enum.Desc.FullName())
+		schema.Ref = refPrefix + string(field.Enum.Desc.FullName()) + fileExtension
 		return schema
 	}
 

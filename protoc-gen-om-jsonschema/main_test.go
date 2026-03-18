@@ -1596,6 +1596,8 @@ func TestApplyOption(t *testing.T) {
 		{"strict_oneof", "strict_oneof", "", func() bool { return strictOneof }},
 		{"exclude_packages", "exclude_packages", "pkg1;pkg2", func() bool { return excludePackages == "pkg1;pkg2" }},
 		{"exclude_messages", "exclude_messages", "msg1;msg2", func() bool { return excludeMessages == "msg1;msg2" }},
+		{"file_extension", "file_extension", ".json", func() bool { return fileExtension == ".json" }},
+		{"ref_prefix", "ref_prefix", "https://example.com/schemas/", func() bool { return refPrefix == "https://example.com/schemas/" }},
 	}
 
 	for _, tt := range tests {
@@ -1606,6 +1608,8 @@ func TestApplyOption(t *testing.T) {
 			strictOneof = false
 			excludePackages = ""
 			excludeMessages = ""
+			fileExtension = ""
+			refPrefix = ""
 
 			applyOption(tt.option, tt.value)
 			if !tt.check() {
@@ -1687,5 +1691,233 @@ func TestIsEnumExcluded(t *testing.T) {
 				t.Errorf("isEnumExcluded(%q) = %v, want %v", tt.enum, got, tt.excluded)
 			}
 		})
+	}
+}
+
+// TestProcessRequestWithFileExtension tests that file_extension option appends extension to filenames
+func TestProcessRequestWithFileExtension(t *testing.T) {
+	requestFile := "testfiles/request.bin"
+	data, err := os.ReadFile(requestFile)
+	if err != nil {
+		t.Skipf("Skipping test: %v", err)
+	}
+
+	req := &pluginpb.CodeGeneratorRequest{}
+	if err := proto.Unmarshal(data, req); err != nil {
+		t.Fatalf("Failed to unmarshal request: %v", err)
+	}
+
+	param := "file_extension=.json"
+	req.Parameter = &param
+
+	modifiedData, err := proto.Marshal(req)
+	if err != nil {
+		t.Fatalf("Failed to marshal modified request: %v", err)
+	}
+
+	var output bytes.Buffer
+	err = processRequest(modifiedData, &output)
+	if err != nil {
+		t.Fatalf("processRequest with file_extension failed: %v", err)
+	}
+
+	resp := &pluginpb.CodeGeneratorResponse{}
+	if err := proto.Unmarshal(output.Bytes(), resp); err != nil {
+		t.Fatalf("Failed to unmarshal response: %v", err)
+	}
+
+	if len(resp.File) == 0 {
+		t.Fatal("Expected at least one generated file")
+	}
+
+	// All generated filenames should end with .json
+	for _, f := range resp.File {
+		name := f.GetName()
+		if !strings.HasSuffix(name, ".json") {
+			t.Errorf("Expected filename %q to end with .json", name)
+		}
+	}
+
+	// Verify specific known schema has the extension
+	fileNames := make(map[string]bool)
+	for _, f := range resp.File {
+		fileNames[f.GetName()] = true
+	}
+	if !fileNames["google.protobuf.Any.json"] {
+		t.Error("Expected google.protobuf.Any.json in output")
+	}
+
+	// Verify $id values include the file extension
+	for _, f := range resp.File {
+		content := f.GetContent()
+		var schema map[string]interface{}
+		if err := json.Unmarshal([]byte(content), &schema); err != nil {
+			t.Fatalf("Failed to parse JSON for %s: %v", f.GetName(), err)
+		}
+		if id, ok := schema["$id"].(string); ok {
+			if !strings.HasSuffix(id, ".json") {
+				t.Errorf("Expected $id %q in file %q to end with .json", id, f.GetName())
+			}
+		}
+	}
+
+	// Verify $ref values include the file extension
+	for _, f := range resp.File {
+		content := f.GetContent()
+		var schema map[string]interface{}
+		if err := json.Unmarshal([]byte(content), &schema); err != nil {
+			continue
+		}
+		checkRefsHaveExtension(t, f.GetName(), schema, ".json")
+	}
+}
+
+// checkRefsHaveExtension recursively checks that all $ref values in a schema end with the given extension.
+func checkRefsHaveExtension(t *testing.T, fileName string, obj map[string]interface{}, ext string) {
+	t.Helper()
+	if ref, ok := obj["$ref"].(string); ok {
+		if !strings.HasSuffix(ref, ext) {
+			t.Errorf("In file %q, expected $ref %q to end with %q", fileName, ref, ext)
+		}
+	}
+	for _, v := range obj {
+		switch val := v.(type) {
+		case map[string]interface{}:
+			checkRefsHaveExtension(t, fileName, val, ext)
+		}
+	}
+}
+
+// TestProcessRequestWithSchemaJsonExtension tests file_extension with .schema.json
+func TestProcessRequestWithSchemaJsonExtension(t *testing.T) {
+	requestFile := "testfiles/request.bin"
+	data, err := os.ReadFile(requestFile)
+	if err != nil {
+		t.Skipf("Skipping test: %v", err)
+	}
+
+	req := &pluginpb.CodeGeneratorRequest{}
+	if err := proto.Unmarshal(data, req); err != nil {
+		t.Fatalf("Failed to unmarshal request: %v", err)
+	}
+
+	param := "strict_any,file_extension=.schema.json"
+	req.Parameter = &param
+
+	modifiedData, err := proto.Marshal(req)
+	if err != nil {
+		t.Fatalf("Failed to marshal modified request: %v", err)
+	}
+
+	var output bytes.Buffer
+	err = processRequest(modifiedData, &output)
+	if err != nil {
+		t.Fatalf("processRequest with file_extension=.schema.json failed: %v", err)
+	}
+
+	resp := &pluginpb.CodeGeneratorResponse{}
+	if err := proto.Unmarshal(output.Bytes(), resp); err != nil {
+		t.Fatalf("Failed to unmarshal response: %v", err)
+	}
+
+	// All generated filenames should end with .schema.json
+	for _, f := range resp.File {
+		name := f.GetName()
+		if !strings.HasSuffix(name, ".schema.json") {
+			t.Errorf("Expected filename %q to end with .schema.json", name)
+		}
+	}
+}
+
+// TestProcessRequestWithRefPrefix tests that ref_prefix option prepends prefix to $id and $ref values
+func TestProcessRequestWithRefPrefix(t *testing.T) {
+	requestFile := "testfiles/request.bin"
+	data, err := os.ReadFile(requestFile)
+	if err != nil {
+		t.Skipf("Skipping test: %v", err)
+	}
+
+	req := &pluginpb.CodeGeneratorRequest{}
+	if err := proto.Unmarshal(data, req); err != nil {
+		t.Fatalf("Failed to unmarshal request: %v", err)
+	}
+
+	prefix := "https://example.com/schemas/"
+	param := "ref_prefix=" + prefix + ",file_extension=.json"
+	req.Parameter = &param
+
+	modifiedData, err := proto.Marshal(req)
+	if err != nil {
+		t.Fatalf("Failed to marshal modified request: %v", err)
+	}
+
+	var output bytes.Buffer
+	err = processRequest(modifiedData, &output)
+	if err != nil {
+		t.Fatalf("processRequest with ref_prefix failed: %v", err)
+	}
+
+	resp := &pluginpb.CodeGeneratorResponse{}
+	if err := proto.Unmarshal(output.Bytes(), resp); err != nil {
+		t.Fatalf("Failed to unmarshal response: %v", err)
+	}
+
+	if len(resp.File) == 0 {
+		t.Fatal("Expected at least one generated file")
+	}
+
+	// Output filenames must NOT contain the prefix
+	for _, f := range resp.File {
+		name := f.GetName()
+		if strings.HasPrefix(name, prefix) {
+			t.Errorf("Filename %q should not contain ref_prefix", name)
+		}
+		if !strings.HasSuffix(name, ".json") {
+			t.Errorf("Expected filename %q to end with .json", name)
+		}
+	}
+
+	// All $id values must start with the prefix and end with .json
+	for _, f := range resp.File {
+		content := f.GetContent()
+		var schema map[string]interface{}
+		if err := json.Unmarshal([]byte(content), &schema); err != nil {
+			t.Fatalf("Failed to parse JSON for %s: %v", f.GetName(), err)
+		}
+		if id, ok := schema["$id"].(string); ok {
+			if !strings.HasPrefix(id, prefix) {
+				t.Errorf("Expected $id %q in file %q to start with %q", id, f.GetName(), prefix)
+			}
+			if !strings.HasSuffix(id, ".json") {
+				t.Errorf("Expected $id %q in file %q to end with .json", id, f.GetName())
+			}
+		}
+	}
+
+	// All $ref values must start with the prefix and end with .json
+	for _, f := range resp.File {
+		content := f.GetContent()
+		var schema map[string]interface{}
+		if err := json.Unmarshal([]byte(content), &schema); err != nil {
+			continue
+		}
+		checkRefsHavePrefix(t, f.GetName(), schema, prefix)
+		checkRefsHaveExtension(t, f.GetName(), schema, ".json")
+	}
+}
+
+// checkRefsHavePrefix recursively checks that all $ref values in a schema start with the given prefix.
+func checkRefsHavePrefix(t *testing.T, fileName string, obj map[string]interface{}, prefix string) {
+	t.Helper()
+	if ref, ok := obj["$ref"].(string); ok {
+		if !strings.HasPrefix(ref, prefix) {
+			t.Errorf("In file %q, expected $ref %q to start with %q", fileName, ref, prefix)
+		}
+	}
+	for _, v := range obj {
+		switch val := v.(type) {
+		case map[string]interface{}:
+			checkRefsHavePrefix(t, fileName, val, prefix)
+		}
 	}
 }
