@@ -57,8 +57,11 @@ func main() {
 
 	fmt.Fprintf(os.Stderr, "protoc-gen-debugfile: saved CodeGeneratorRequest (%d bytes) to %s\n", len(input), outputPath)
 
-	// Return an empty valid CodeGeneratorResponse on stdout
-	resp := &pluginpb.CodeGeneratorResponse{}
+	// Return a valid CodeGeneratorResponse advertising proto3 optional support
+	features := uint64(pluginpb.CodeGeneratorResponse_FEATURE_PROTO3_OPTIONAL)
+	resp := &pluginpb.CodeGeneratorResponse{
+		SupportedFeatures: &features,
+	}
 	out, err := proto.Marshal(resp)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "protoc-gen-debugfile: failed to marshal response: %v\n", err)

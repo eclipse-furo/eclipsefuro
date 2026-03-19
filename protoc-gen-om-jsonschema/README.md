@@ -284,7 +284,7 @@ Exclude entire packages from schema generation. Useful for skipping dependency p
 ```bash
 protoc \
   --om-jsonschema_out=./output \
-  --om-jsonschema_opt=exclude_packages=google.api;openapi.v3;google.rpc \
+  "--om-jsonschema_opt=exclude_packages=google.api;openapi.v3;google.rpc" \
   your_proto_files.proto
 ```
 
@@ -297,7 +297,7 @@ Exclude specific messages or enums from schema generation. Useful for skipping i
 ```bash
 protoc \
   --om-jsonschema_out=./output \
-  --om-jsonschema_opt=exclude_messages=mypackage.InternalMessage;mypackage.DebugInfo \
+  "--om-jsonschema_opt=exclude_messages=mypackage.InternalMessage;mypackage.DebugInfo" \
   your_proto_files.proto
 ```
 
@@ -308,7 +308,7 @@ Message names must be fully qualified (e.g., `package.MessageName`). This option
 ```bash
 protoc \
   --om-jsonschema_out=./output \
-  --om-jsonschema_opt=strict_any,exclude_packages=google.api;openapi.v3,exclude_messages=mypackage.Internal \
+  "--om-jsonschema_opt=strict_any,exclude_packages=google.api;openapi.v3,exclude_messages=mypackage.Internal" \
   your_proto_files.proto
 ```
 

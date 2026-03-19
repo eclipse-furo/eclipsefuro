@@ -21,6 +21,7 @@ type ModelType struct {
 	RequiredFields  string
 	ReadonlyFields  string
 	DefaultValues   *map[string]string // deviated from openapi_v3.DefaultType
+	OneofGroups     []string           // lowerCamelCase oneof group names for __meta.oneofGroups init
 }
 
 type ModelFields struct {
@@ -37,7 +38,7 @@ type ModelFields struct {
 	MAPValueConstructor string // value constructor for MAP
 	FieldConstructor    string // constructor for the field / usually it is the same as ModelType
 	Constraints         string // Openapi Constraints as json literal
-
+	OneofGroup          string // lowerCamelCase oneof group name, empty if not in a oneof
 }
 
 type FieldConstraints struct {
@@ -111,9 +112,18 @@ export class {{.Name}} extends FieldNode {
         {{- if ne .MAPValueConstructor ""}}
         ValueConstructor: {{.MAPValueConstructor}},{{end}}{{if .Constraints}}
         constraints: {{.Constraints}},{{end}}
-        description: '{{desc .LeadingComments}}'
+        description: '{{desc .LeadingComments}}'{{if ne .OneofGroup ""}},
+        oneofGroup: '{{.OneofGroup}}'{{end}}
       }{{end}}
     ];
+{{- if .OneofGroups}}
+
+    this.__meta.oneofGroups = new Map([
+{{- range .OneofGroups}}
+      ['{{.}}', undefined],
+{{- end}}
+    ]);
+{{- end}}
 
     // Initialize the fields
     // ---------------------
@@ -219,6 +229,18 @@ func prepareModelType(msg *protogen.Message, imports ImportMap, openApiSchema *o
 
 	defaultValuesMap := map[string]string{}
 
+	// Collect oneof group names
+	oneofGroupNames := []string{}
+	for i := 0; i < msg.Desc.Oneofs().Len(); i++ {
+		oneof := msg.Desc.Oneofs().Get(i)
+		// Skip synthetic oneofs created by proto3 optional fields
+		if oneof.IsSynthetic() {
+			continue
+		}
+		oneofGroupNames = append(oneofGroupNames, strcase.ToLowerCamel(string(oneof.Name())))
+	}
+	modelType.OneofGroups = oneofGroupNames
+
 	for _, field := range msg.Fields {
 		fieldName := string(field.Desc.Name())
 		jsonName := field.Desc.JSONName()
@@ -297,6 +319,12 @@ func prepareModelType(msg *protogen.Message, imports ImportMap, openApiSchema *o
 			modelType.DefaultValues = &defaultValuesMap
 		}
 
+		// Detect oneof membership
+		oneofGroup := ""
+		if field.Desc.ContainingOneof() != nil && !field.Desc.ContainingOneof().IsSynthetic() {
+			oneofGroup = strcase.ToLowerCamel(string(field.Desc.ContainingOneof().Name()))
+		}
+
 		modelType.Fields = append(modelType.Fields, ModelFields{
 			LeadingComments:     multilineComment(string(field.Comments.Leading)),
 			TrailingComment:     string(field.Comments.Trailing),
@@ -311,6 +339,7 @@ func prepareModelType(msg *protogen.Message, imports ImportMap, openApiSchema *o
 			MAPValueConstructor: mapValueConstructor,
 			FieldConstructor:    fc,
 			Constraints:         constraints,
+			OneofGroup:          oneofGroup,
 		})
 	}
 
