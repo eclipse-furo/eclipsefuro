@@ -261,7 +261,52 @@ private _people: MAP<string, Person, IPerson>;
 
 ### oneof
 
-Oneof is not yet fully implemented. This depends on `@furo/open-models` runtime support.
+> Requires `@furo/open-models` 1.18.0 or newer.
+
+Each field inside a `oneof` block gets a `oneofGroup` property in its metadata entry. The constructor also initializes a `oneofGroups` Map that the runtime uses to enforce mutual exclusivity.
+
+**Proto:**
+```protobuf
+message Shape {
+  string name = 1;
+  oneof area {
+    float radius = 2;
+    float length = 3;
+  }
+}
+```
+
+**Model (relevant parts):**
+```typescript
+this.__meta.nodeFields = [
+  {
+    fieldName: 'name',
+    protoName: 'name',
+    FieldConstructor: STRING,
+    description: ''
+  },
+  {
+    fieldName: 'radius',
+    protoName: 'radius',
+    FieldConstructor: FLOAT,
+    description: '',
+    oneofGroup: 'area'
+  },
+  {
+    fieldName: 'length',
+    protoName: 'length',
+    FieldConstructor: FLOAT,
+    description: '',
+    oneofGroup: 'area'
+  }
+];
+
+this.__meta.oneofGroups = new Map([
+  ['area', undefined],
+]);
+```
+
+The runtime will clear sibling fields in the same group when one is set, matching standard protobuf oneof semantics.
 
 ### Self-Recursion and Deep Recursion
 
