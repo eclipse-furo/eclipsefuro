@@ -23,6 +23,7 @@ var WellKnownTypesMap = map[string]string{
 	"Struct":      "JSONObject",
 	"Empty":       "Record<string, never>",
 	"FieldMask":   "string[]",
+	"ListValue":   "JSONObject[]",
 }
 
 var ModelWellKnownTypesMap = map[string]string{
@@ -40,6 +41,7 @@ var ModelWellKnownTypesMap = map[string]string{
 	"Struct":      "JSONObject",
 	"Empty":       "Record<string, never>",
 	"FieldMask":   "string[]",
+	"ListValue":   "JSONObject[]",
 }
 
 // https://protobuf.dev/programming-guides/json/
@@ -329,7 +331,6 @@ func isWellKnownType(tn string) bool {
 
 	return strings.HasPrefix(tn, ".google.protobuf.") &&
 		tn != ".google.protobuf.Api" &&
-		tn != ".google.protobuf.ListValue" &&
 		tn != ".google.protobuf.Value" &&
 		tn != ".google.protobuf.Type" &&
 		tn != ".google.protobuf.Descriptor" &&
