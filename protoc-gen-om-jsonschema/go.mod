@@ -1,4 +1,4 @@
-module protoc-gen-om-jsonschema
+module github.com/eclipse-furo/eclipsefuro/protoc-gen-om-jsonschema
 
 go 1.25
 

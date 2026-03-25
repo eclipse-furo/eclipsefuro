@@ -1,4 +1,4 @@
-module protoc-gen-debugfile
+module github.com/eclipse-furo/eclipsefuro/protoc-gen-debugfile
 
 go 1.25
 
