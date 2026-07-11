@@ -1,6 +1,7 @@
 FROM golang:1.24-bookworm
 
 ENV GATEWAY_VERSION=2.27.1
+ENV PROTOC_GEN_OPEN_MODELS_VERSION=1.52.3
 ENV PROTOC_GEN_FURO_VERSION=1.52.2
 ENV PROTOC_GEN_OPENAPI_VERSION=0.7.0
 ENV GEN_GO_VERSION=1.36.6
@@ -36,7 +37,7 @@ RUN set -eux; \
 # install furo protoc plugins
 RUN set -eux; \
      GO111MODULE=on go install \
-     github.com/eclipse-furo/eclipsefuro/protoc-gen-open-models@v$PROTOC_GEN_FURO_VERSION \
+     github.com/eclipse-furo/eclipsefuro/protoc-gen-open-models@v$PROTOC_GEN_OPEN_MODELS_VERSION \
      github.com/eclipse-furo/eclipsefuro/protoc-gen-om-jsonschema@v$PROTOC_GEN_FURO_VERSION \
      github.com/eclipse-furo/eclipsefuro/protoc-gen-debugfile@v$PROTOC_GEN_FURO_VERSION
 
