@@ -8,6 +8,7 @@
 // Usage:
 //
 //	protoc --om-jsonschema_out=./output your_proto_files.proto
+//	protoc-gen-om-jsonschema --version
 //
 // Plugin Options:
 //   - strict_any:   Use standard typeUrl/value format for google.protobuf.Any
@@ -34,6 +35,8 @@ import (
 	"google.golang.org/protobuf/types/descriptorpb"
 	"google.golang.org/protobuf/types/pluginpb"
 )
+
+const version = "1.52.2"
 
 // Plugin options control the output format of the generated schemas.
 // These are set via protoc command line options like --om-jsonschema_opt=strict_any
@@ -160,6 +163,10 @@ func main() {
 	// This allows running the plugin directly without protoc for debugging
 	replayRequest := ""
 	for i, arg := range os.Args[1:] {
+		if arg == "--version" {
+			fmt.Printf("protoc-gen-om-jsonschema %s\n", version)
+			return
+		}
 		if strings.HasPrefix(arg, "--replay-request=") {
 			replayRequest = strings.TrimPrefix(arg, "--replay-request=")
 			// Remove this arg so it doesn't confuse the flag parser

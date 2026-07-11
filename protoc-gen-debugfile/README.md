@@ -15,6 +15,9 @@ Debugging protoc plugins is hard. Protoc communicates with plugins through stdin
 ```bash
 cd protoc-gen-debugfile
 go build -o protoc-gen-debugfile .
+
+# Check the version
+./protoc-gen-debugfile --version
 ```
 
 Make sure the binary is on your `$PATH` or in the same directory where you run `protoc`.

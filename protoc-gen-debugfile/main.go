@@ -14,6 +14,10 @@
 //
 //	./protoc-gen-om-jsonschema --replay-request=/tmp/request.bin
 //	./protoc-gen-open-models --replay-request=/tmp/request.bin
+//
+// Version information:
+//
+//	protoc-gen-debugfile --version
 package main
 
 import (
@@ -25,9 +29,16 @@ import (
 	"google.golang.org/protobuf/types/pluginpb"
 )
 
-const version = "1.0.0"
+const version = "1.52.2"
 
 func main() {
+	for _, arg := range os.Args[1:] {
+		if arg == "--version" {
+			fmt.Printf("protoc-gen-debugfile %s\n", version)
+			return
+		}
+	}
+
 	// Read raw stdin bytes (the CodeGeneratorRequest from protoc)
 	input, err := io.ReadAll(os.Stdin)
 	if err != nil {

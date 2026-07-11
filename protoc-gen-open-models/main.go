@@ -12,11 +12,15 @@ import (
 	"google.golang.org/protobuf/types/pluginpb"
 )
 
-const version = "1.48.0"
+const version = "1.52.2"
 
 func main() {
 	replayRequest := ""
 	for i, arg := range os.Args[1:] {
+		if arg == "--version" {
+			fmt.Printf("protoc-gen-open-models %s\n", version)
+			return
+		}
 		if strings.HasPrefix(arg, "--replay-request=") {
 			replayRequest = strings.TrimPrefix(arg, "--replay-request=")
 			os.Args = append(os.Args[:i+1], os.Args[i+2:]...)

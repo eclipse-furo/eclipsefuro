@@ -1,7 +1,7 @@
-FROM golang:1.24-alpine
+FROM golang:1.24-bookworm
 
 ENV GATEWAY_VERSION=2.27.1
-ENV PROTOC_GEN_OPENMODELS_VERSION=1.47.0
+ENV PROTOC_GEN_FURO_VERSION=1.52.2
 ENV PROTOC_GEN_OPENAPI_VERSION=0.7.0
 ENV GEN_GO_VERSION=1.36.6
 ENV GEN_GO_GRPC_VERSION=1.5.1
@@ -13,8 +13,10 @@ ENV PATH="$PATH:$GOPATH/bin"
 ENV PATH="/usr/local/sbin:$PATH"
 ENV PS1="\e[0;34mフロー BEC \t# \e[m "
 
-# Install ssh client and git
-RUN apk add --no-cache bash openssh-client git curl wget ca-certificates openssh jq nodejs npm
+# Install ssh client, git, and common tools
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    bash openssh-client git curl wget ca-certificates jq nodejs npm unzip \
+    && rm -rf /var/lib/apt/lists/*
 
 # Download public key for github.com
 RUN mkdir -p -m 0600 ~/.ssh && ssh-keyscan github.com >> ~/.ssh/known_hosts
@@ -24,10 +26,6 @@ RUN ssh-keygen -q -t ed25519 -f /root/.ssh/id_ed25519 -N '""' -C '"furoBEC"'
 RUN set -eux; \
     curl -L https://github.com/protocolbuffers/protobuf/releases/download/v$PROTOC_VERSION/protoc-$PROTOC_VERSION-linux-x86_64.zip -o /tmp/protoc.zip; \
     unzip /tmp/protoc.zip -d /usr/local; \
-    # install glibc for alpine \
-    wget -q -O /etc/apk/keys/sgerrand.rsa.pub https://alpine-pkgs.sgerrand.com/sgerrand.rsa.pub; \
-    wget https://github.com/sgerrand/alpine-pkg-glibc/releases/download/2.35-r1/glibc-2.35-r1.apk; \
-    apk add glibc-2.35-r1.apk; \
     rm -rf /tmp/*
 
 # install the tools
@@ -35,14 +33,14 @@ RUN set -eux; \
      GO111MODULE=on go install \
      github.com/google/gnostic/cmd/protoc-gen-openapi@v$PROTOC_GEN_OPENAPI_VERSION
 
-# install the tools
+# install furo protoc plugins
 RUN set -eux; \
      GO111MODULE=on go install \
-     github.com/eclipse-furo/eclipsefuro/protoc-gen-open-models@v$PROTOC_GEN_OPENMODELS_VERSION
+     github.com/eclipse-furo/eclipsefuro/protoc-gen-open-models@v$PROTOC_GEN_FURO_VERSION \
+     github.com/eclipse-furo/eclipsefuro/protoc-gen-om-jsonschema@v$PROTOC_GEN_FURO_VERSION \
+     github.com/eclipse-furo/eclipsefuro/protoc-gen-debugfile@v$PROTOC_GEN_FURO_VERSION
 
-
-# install the tools
-
+# install grpc-gateway tools
 RUN set -eux; \
     GO111MODULE=on go install \
     github.com/grpc-ecosystem/grpc-gateway/v2/protoc-gen-grpc-gateway@v$GATEWAY_VERSION \

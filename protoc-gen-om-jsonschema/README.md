@@ -12,6 +12,9 @@ They are also useful for validating JSON data against the schema.
 # Build the plugin
 go build -o protoc-gen-om-jsonschema .
 
+# Check the version
+./protoc-gen-om-jsonschema --version
+
 # Run protoc with the plugin
 protoc \
   -I./proto_dependencies \

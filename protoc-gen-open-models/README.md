@@ -10,6 +10,9 @@ along with TypeScript enums and REST service classes.
 # Build the plugin
 go build -o protoc-gen-open-models .
 
+# Check the version
+./protoc-gen-open-models --version
+
 # Run protoc with the plugin
 protoc \
   -I./proto_dependencies \

@@ -2,3 +2,4 @@
 .gobuild
 _generateddocs
 .DS_Store
+/protoc-gen-open-models/protoc-gen-om-jsonschema

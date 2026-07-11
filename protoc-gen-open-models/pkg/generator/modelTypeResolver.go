@@ -224,14 +224,14 @@ func resolveModelType(imports ImportMap, field *protogen.Field) (
 				if tn == "."+fieldPkg+"."+parentName {
 					return "ARRAY<" + className + ", I" + className + ">",
 						"__TypeSetter",
-						"I" + className + "[]",
+						"I" + className + "[] | null",
 						"ARRAY<" + className + ", I" + className + ">",
 						"",
 						className
 				}
 				return "ARRAY<" + t + ", I" + t + ">",
 					"__TypeSetter",
-					"I" + t + "[]",
+					"I" + t + "[] | null",
 					"ARRAY<" + t + ", I" + t + ">",
 					"",
 					t
@@ -241,7 +241,7 @@ func resolveModelType(imports ImportMap, field *protogen.Field) (
 				imports.AddImport("@furo/open-models/dist/index", "RECURSION", "")
 				return "RECURSION<" + className + ", I" + className + ">",
 					"__TypeSetter",
-					"I" + className,
+					"I" + className + " | null",
 					"RECURSION<" + className + ", I" + className + ">",
 					"",
 					className
@@ -251,13 +251,13 @@ func resolveModelType(imports ImportMap, field *protogen.Field) (
 				imports.AddImport("@furo/open-models/dist/index", "RECURSION", "")
 				return "RECURSION<" + t + ", I" + t + ">",
 					"__TypeSetter",
-					"I" + t,
+					"I" + t + " | null",
 					"RECURSION<" + t + ", I" + t + ">",
 					"",
 					t
 			}
 
-			return t, "__TypeSetter", "I" + t, t, "", t
+			return t, "__TypeSetter", "I" + t + " | null", t, "", t
 		}
 
 		// find relative path to import target
