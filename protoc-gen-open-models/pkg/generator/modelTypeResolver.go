@@ -187,7 +187,7 @@ func resolveModelType(imports ImportMap, field *protogen.Field) (
 			if typeName == "Any" {
 				imports.AddImport("@furo/open-models/dist/index", "type IAny", "")
 				imports.AddImport("@furo/open-models/dist/index", "ANY", "")
-				return "ANY", "__TypeSetter", "IAny", "ANY", "", "ANY"
+				return "ANY", "__TypeSetter", "IAny | null", "ANY", "", "ANY"
 			}
 
 			primitiveType := ModelWellKnownTypesMap[typeName]
@@ -200,7 +200,7 @@ func resolveModelType(imports ImportMap, field *protogen.Field) (
 			}
 
 			imports.AddImport("@furo/open-models/dist/index", typeName, "")
-			return typeName, "__TypeSetter", primitiveType + "| null", typeName, "", typeName
+			return typeName, "__TypeSetter", primitiveType + " | null", typeName, "", typeName
 		}
 
 		// MESSAGE
@@ -280,12 +280,12 @@ func resolveModelType(imports ImportMap, field *protogen.Field) (
 
 				return "ARRAY<" + t + ", I" + t + ">",
 					"__TypeSetter",
-					"I" + t + "[]",
+					"I" + t + "[] | null",
 					"ARRAY<" + t + ", I" + t + ">",
 					"",
 					t
 			}
-			return t, "__TypeSetter", "I" + t, t, "", t
+			return t, "__TypeSetter", "I" + t + " | null", t, "", t
 		}
 
 		return tn, "__TypeSetter", "todo:resolve dependency", "???", "", tn
