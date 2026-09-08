@@ -173,6 +173,22 @@ func resolveModelType(imports ImportMap, field *protogen.Field) (
 				"MAP<string," + fullQualifiedName(maptype, "") + "," + fullQualifiedName(maptype, "") + ">"
 		}
 
+		// Enum-valued map. MAP builds its values with `new Constructor()` via the
+		// ValueConstructor descriptor slot, so it needs the bound <Name>ENUM subclass.
+		if valueKind == protoreflect.EnumKind {
+			e := "." + string(valueField.Enum.Desc.FullName())
+			if fqn, ok := resolveEnumImport(imports, e, fieldPkg, true); ok {
+				imports.AddImport("@furo/open-models/dist/index", "MAP", "")
+				m := "MAP<string," + fqn + "ENUM," + fqn + ">"
+				return m,
+					"__TypeSetter",
+					"{ [key: string]: " + fqn + " }",
+					m,
+					fqn + "ENUM",
+					m
+			}
+		}
+
 		return "MAP<string,unknown,unknown>", "__TypeSetter", "unknown", "unknown", "", "unknown"
 	}
 
@@ -291,37 +307,21 @@ func resolveModelType(imports ImportMap, field *protogen.Field) (
 		return tn, "__TypeSetter", "todo:resolve dependency", "???", "", tn
 	}
 	if fieldType == "TYPE_ENUM" {
-		t := tn
-		className := dotToCamel(enumName(allEnums[t]))
-		if strings.HasPrefix(t, ".") {
-			t = t[1:]
+		fqn, ok := resolveEnumImport(imports, tn, fieldPkg, isRepeated)
+		if !ok {
+			return "ENUM:UNRECOGNIZED", "__TypeSetter", "???", "???", "", "ENUM<" + strings.TrimPrefix(tn, ".") + ">"
 		}
-		enumPkg := string(allEnums[tn].Desc.ParentFile().Package())
-		if enumPkg == fieldPkg {
-			importFile := t[len(fieldPkg)+1:]
-			fqn := fullQualifiedName(t, "")
 
-			imports.AddImport("@furo/open-models/dist/index", "ENUM", "")
-			imports.AddImport("./"+importFile, PrefixReservedWords(className), fqn)
-
-			return "ENUM<" + fqn + ">", "__TypeSetter", fqn, "ENUM<" + fqn + ">", "", "ENUM<" + fqn + ">"
+		// A repeated enum is an ARRAY of the generated <Name>ENUM subclass. ENUM itself
+		// cannot be the element constructor: ARRAY builds children with `new Constructor()`.
+		if isRepeated {
+			imports.AddImport("@furo/open-models/dist/index", "ARRAY", "")
+			arr := "ARRAY<" + fqn + "ENUM, " + fqn + ">"
+			return arr, "__TypeSetter", fqn + "[]", arr, "", fqn + "ENUM"
 		}
-		if _, ok := projectFiles[typenameToPath(tn)]; ok {
-			fieldPackage := strings.Split("."+fieldPkg, ".")
-			rel, _ := filepath.Rel(strings.Join(fieldPackage, "/"), "/"+typenameToPath(tn))
-			if !strings.HasPrefix(rel, "..") {
-				rel = "./" + rel
-			}
-			fqn := fullQualifiedName(t, "")
 
-			imports.AddImport("@furo/open-models/dist/index", "ENUM", "")
-			imports.AddImport(rel, PrefixReservedWords(className), fqn)
-			if isRepeated {
-				return "ENUM<" + fqn + ">", "__TypeSetter", fqn, "ENUM<" + fqn + ">", "", "ENUM<" + fqn + ">"
-			}
-			return "ENUM<" + fqn + ">", "__TypeSetter", fqn, "ENUM<" + fqn + ">", "", "ENUM<" + fqn + ">"
-		}
-		return "ENUM:UNRECOGNIZED", "__TypeSetter", "???", "???", "", "ENUM<" + t + ">"
+		imports.AddImport("@furo/open-models/dist/index", "ENUM", "")
+		return "ENUM<" + fqn + ">", "__TypeSetter", fqn, "ENUM<" + fqn + ">", "", "ENUM<" + fqn + ">"
 	}
 
 	return "UNRECOGNIZED", "UNRECOGNIZED", "UNRECOGNIZED", "UNRECOGNIZED", "", "UNRECOGNIZED"

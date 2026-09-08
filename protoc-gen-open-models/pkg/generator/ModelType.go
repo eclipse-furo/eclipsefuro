@@ -34,6 +34,7 @@ type ModelFields struct {
 	SetterType          string // string or LFuroTypeMessage
 	GetterType          string // string or FuroTypeMessage
 	Kind                string // proto field type like TYPE_MESSAGE
+	IsRepeated          bool   // true for `repeated` fields; Kind alone cannot tell them apart
 	EnumDefault         string // Name of the first enum option
 	MAPValueConstructor string // value constructor for MAP
 	FieldConstructor    string // constructor for the field / usually it is the same as ModelType
@@ -131,7 +132,7 @@ export class {{.Name}} extends FieldNode {
    /**{{if .LeadingComments}}{{range $i, $commentLine := .LeadingComments}}
     * {{$commentLine}}{{end}}{{end}}
     **/
-    this._{{.FieldName}} = new {{.ModelType}}(undefined,{{if eq .Kind "TYPE_ENUM"}}{{.SetterType}}, {{.SetterType}}.{{.EnumDefault}}, {{end}} this, '{{.FieldName}}');
+    this._{{.FieldName}} = new {{.ModelType}}(undefined,{{if and (eq .Kind "TYPE_ENUM") (not .IsRepeated)}}{{.SetterType}}, {{.SetterType}}.{{.EnumDefault}}, {{end}} this, '{{.FieldName}}');
 {{end}}
 
 
@@ -335,6 +336,7 @@ func prepareModelType(msg *protogen.Message, imports ImportMap, openApiSchema *o
 			SetterType:          st,
 			GetterType:          gt,
 			Kind:                fieldType,
+			IsRepeated:          field.Desc.IsList(),
 			EnumDefault:         enumDefault,
 			MAPValueConstructor: mapValueConstructor,
 			FieldConstructor:    fc,

@@ -12,7 +12,7 @@ import (
 	"google.golang.org/protobuf/types/pluginpb"
 )
 
-const version = "1.52.3"
+const version = "1.53.0"
 
 func main() {
 	replayRequest := ""

@@ -86,6 +86,13 @@ func resolveInterfaceType(imports ImportMap, field *protogen.Field, kindPrefix s
 			return "{ [key: string]: " + kindPrefix + fullQualifiedName(maptype, "") + " }"
 		}
 
+		if valueKind == protoreflect.EnumKind {
+			e := "." + string(valueField.Enum.Desc.FullName())
+			if fqn, ok := resolveEnumImport(imports, e, fieldPkg, false); ok {
+				return "{ [key: string]: " + fqn + " }"
+			}
+		}
+
 		return "{ [key: string]: unknown }"
 	}
 
@@ -155,39 +162,14 @@ func resolveInterfaceType(imports ImportMap, field *protogen.Field, kindPrefix s
 		return tn
 	}
 	if fieldType == "TYPE_ENUM" {
-		t := tn
-		className := dotToCamel(enumName(allEnums[t]))
-		if strings.HasPrefix(t, ".") {
-			t = t[1:]
+		fqn, ok := resolveEnumImport(imports, tn, fieldPkg, false)
+		if !ok {
+			return "ENUM:UNRECOGNIZED"
 		}
-		enumPkg := string(allEnums[tn].Desc.ParentFile().Package())
-		if enumPkg == fieldPkg {
-			importFile := t[len(fieldPkg)+1:]
-			fqn := fullQualifiedName(t, "")
-
-			imports.AddImport("./"+importFile, PrefixReservedWords(className), fqn)
-			if isRepeated {
-				return fqn + "[]"
-			}
-			return fqn + " | string"
+		if isRepeated {
+			return fqn + "[]"
 		}
-		if _, ok := projectFiles[typenameToPath(tn)]; ok {
-			fieldPackage := strings.Split("."+fieldPkg, ".")
-			rel, _ := filepath.Rel(strings.Join(fieldPackage, "/"), "/"+typenameToPath(tn))
-			if !strings.HasPrefix(rel, "..") {
-				rel = "./" + rel
-			}
-
-			fqn := fullQualifiedName(t, "")
-
-			imports.AddImport("@furo/open-models/dist/index", "ENUM", "")
-			imports.AddImport(rel, PrefixReservedWords(className), fqn)
-			if isRepeated {
-				return fqn + "[]"
-			}
-			return fqn + " | string"
-		}
-		return "ENUM:UNRECOGNIZED"
+		return fqn + " | string"
 	}
 
 	return "UNRECOGNIZED"
