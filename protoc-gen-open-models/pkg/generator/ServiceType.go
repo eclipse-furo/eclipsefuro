@@ -32,6 +32,10 @@ type ServiceMethods struct {
 	TrailingComment     string
 	CleintStreaming     bool
 	ServerStreaming     bool
+	// StrictFetcher for a unary method, StreamFetcher for a server streaming one. The two have
+	// different runtimes: StrictFetcher resolves one parsed body, StreamFetcher an AsyncIterable
+	// that reconnects.
+	Fetcher string
 }
 
 var ServiceTemplate = `/**{{if .LeadingComments}}{{range $i, $commentLine := .LeadingComments}}
@@ -42,7 +46,7 @@ export class {{.Name}} {
   /**{{if .LeadingComments}}{{range $i, $commentLine := .LeadingComments}}
    * {{$commentLine}}{{end}}{{end}}
    */
-  public {{.Name}}: StrictFetcher<{{.RequestTypeLiteral}},{{if .ServerStreaming}}AsyncIterable<{{.ResponseTypeLiteral}}> | {{end}}{{.ResponseTypeLiteral}}> = new StrictFetcher<{{.RequestTypeLiteral}},{{if .ServerStreaming}}AsyncIterable<{{.ResponseTypeLiteral}}> | {{end}}{{.ResponseTypeLiteral}}>(
+  public {{.Name}}: {{.Fetcher}}<{{.RequestTypeLiteral}},{{.ResponseTypeLiteral}}> = new {{.Fetcher}}<{{.RequestTypeLiteral}},{{.ResponseTypeLiteral}}>(
     API_OPTIONS,
     '{{.Verb}}',
     '{{.Path}}',
@@ -72,8 +76,6 @@ func (r *ServiceType) Render() string {
 
 func prepareServiceType(service *protogen.Service, imports ImportMap) ServiceType {
 
-	imports.AddImport("@furo/open-models/dist/StrictFetcher", "StrictFetcher", "")
-
 	pkg := string(service.Desc.ParentFile().Package())
 
 	// todo: implement fallback, when package is not set
@@ -101,6 +103,13 @@ func prepareServiceType(service *protogen.Service, imports ImportMap) ServiceTyp
 			if apiOptions != nil {
 				body = cleanFieldName(apiOptions.GetBody())
 			}
+			// A server streaming method needs the streaming runtime; a unary one must not get it.
+			fetcher := "StrictFetcher"
+			if method.Desc.IsStreamingServer() {
+				fetcher = "StreamFetcher"
+			}
+			imports.AddImport("@furo/open-models/dist/"+fetcher, fetcher, "")
+
 			serviceMethods := ServiceMethods{
 				Name:                PrefixReservedWords(string(method.Desc.Name())),
 				RequestTypeLiteral:  resolveServiceTypeLiteral("."+string(method.Input.Desc.FullName()), service, imports),
@@ -114,6 +123,7 @@ func prepareServiceType(service *protogen.Service, imports ImportMap) ServiceTyp
 				TrailingComment:     string(method.Comments.Trailing),
 				CleintStreaming:     method.Desc.IsStreamingClient(),
 				ServerStreaming:     method.Desc.IsStreamingServer(),
+				Fetcher:             fetcher,
 			}
 
 			serviceType.Methods = append(serviceType.Methods, serviceMethods)
