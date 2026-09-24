@@ -2,6 +2,7 @@ package generator
 
 var ReservedWords = map[string]struct{}{
 	"JSONObject": {},
+	"JSONValue":  {},
 	"Object":     {},
 	"Any":        {},
 	"String":     {},

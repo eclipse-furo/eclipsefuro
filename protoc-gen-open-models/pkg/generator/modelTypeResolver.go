@@ -23,7 +23,8 @@ var WellKnownTypesMap = map[string]string{
 	"Struct":      "JSONObject",
 	"Empty":       "Record<string, never>",
 	"FieldMask":   "string[]",
-	"ListValue":   "JSONObject[]",
+	"ListValue":   "JSONValue[]",
+	"Value":       "JSONValue",
 }
 
 var ModelWellKnownTypesMap = map[string]string{
@@ -41,7 +42,8 @@ var ModelWellKnownTypesMap = map[string]string{
 	"Struct":      "JSONObject",
 	"Empty":       "Record<string, never>",
 	"FieldMask":   "string[]",
-	"ListValue":   "JSONObject[]",
+	"ListValue":   "JSONValue[]",
+	"Value":       "JSONValue",
 }
 
 // https://protobuf.dev/programming-guides/json/
@@ -210,6 +212,9 @@ func resolveModelType(imports ImportMap, field *protogen.Field) (
 			if primitiveType == "JSONObject" {
 				imports.AddImport("@furo/open-models/dist/index", "type JSONObject", "")
 			}
+			if primitiveType == "JSONValue" || primitiveType == "JSONValue[]" {
+				imports.AddImport("@furo/open-models/dist/index", "type JSONValue", "")
+			}
 			if typeName == "Empty" {
 				imports.AddImport("@furo/open-models/dist/index", "EMPTY", "")
 				return "EMPTY", "__TypeSetter", primitiveType, "EMPTY", "", "EMPTY"
@@ -331,7 +336,6 @@ func isWellKnownType(tn string) bool {
 
 	return strings.HasPrefix(tn, ".google.protobuf.") &&
 		tn != ".google.protobuf.Api" &&
-		tn != ".google.protobuf.Value" &&
 		tn != ".google.protobuf.Type" &&
 		tn != ".google.protobuf.Descriptor" &&
 		tn != ".google.protobuf.Enum" &&
