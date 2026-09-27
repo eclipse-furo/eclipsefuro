@@ -247,11 +247,19 @@ func prepareModelType(msg *protogen.Message, imports ImportMap, openApiSchema *o
 		jsonName := field.Desc.JSONName()
 		fieldType := kindToTypeString[field.Desc.Kind()]
 
-		// check if field is in required list
-		if openApiSchema != nil {
-			if slices.Contains(openApiSchema.Required, fieldName) {
-				reqFields = append(reqFields, jsonName)
-			}
+		// The openapi schema's required list means the JSON has to carry the field, so the model
+		// emits it even when empty (__meta.required). (google.api.field_behavior) = REQUIRED means
+		// the client has to provide a value: a validation constraint only. Emitting such fields
+		// would put empty values into partial bodies, like a PATCH whose update_mask leaves them out.
+		schemaRequired := openApiSchema != nil && slices.Contains(openApiSchema.Required, fieldName)
+		if schemaRequired {
+			reqFields = append(reqFields, jsonName)
+		}
+		required := schemaRequired || isRequiredField(field)
+		// openapi read_only, or (google.api.field_behavior) = OUTPUT_ONLY or IDENTIFIER
+		outputOnly := isOutputOnlyField(field)
+		if outputOnly {
+			readonlyFields = append(readonlyFields, jsonName)
 		}
 
 		enumDefault := ""
@@ -265,10 +273,6 @@ func prepareModelType(msg *protogen.Message, imports ImportMap, openApiSchema *o
 		var constraints string
 		fieldConstraints := FieldConstraints{}
 		if openApiProps != nil {
-			// check for readonly fields
-			if openApiProps.ReadOnly {
-				readonlyFields = append(readonlyFields, jsonName)
-			}
 			if openApiProps.Default != nil {
 				// collect the defaults
 				switch d := openApiProps.Default.Oneof.(type) {
@@ -298,20 +302,13 @@ func prepareModelType(msg *protogen.Message, imports ImportMap, openApiSchema *o
 			c, err := json.Marshal(openApiProps)
 			if err == nil {
 				json.Unmarshal(c, &fieldConstraints)
-				if openApiSchema != nil {
-					if slices.Contains(openApiSchema.Required, fieldName) {
-						fieldConstraints.Required = true
-					}
-				}
 			}
-
-		} else {
-			// check for required constraints only, when no other constraints are given
-			if openApiSchema != nil {
-				if slices.Contains(openApiSchema.Required, fieldName) {
-					fieldConstraints.Required = true
-				}
-			}
+		}
+		if required {
+			fieldConstraints.Required = true
+		}
+		if outputOnly {
+			fieldConstraints.ReadOnly = true
 		}
 		fieldConstraintsJson, _ := json.Marshal(fieldConstraints)
 		constraints = string(fieldConstraintsJson)

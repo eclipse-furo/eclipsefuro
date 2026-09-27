@@ -20,6 +20,7 @@ type TransportFields struct {
 	FieldName       string // name of the field in interface types and models
 	FieldProtoName  string // name of the field in transport types
 	Type            string
+	ReadOnly        bool // output only: openapi read_only, OUTPUT_ONLY or IDENTIFIER
 }
 
 func (r *TransportType) Render() string {
@@ -46,7 +47,7 @@ export interface T{{.Name}} {
 /**{{range $i, $commentLine := .LeadingComments}}
  * {{$commentLine}} {{end}}
  */{{end}}
-    {{.FieldProtoName}}?: {{.Type}};{{if .TrailingComment}} // {{.TrailingComment}}{{end}}{{end}}
+    {{if .ReadOnly}}readonly {{end}}{{.FieldProtoName}}?: {{.Type}};{{if .TrailingComment}} // {{.TrailingComment}}{{end}}{{end}}
 }
 `
 
@@ -64,6 +65,7 @@ func prepareTransportType(msg *protogen.Message, imports ImportMap) TransportTyp
 			FieldName:       field.Desc.JSONName(),
 			FieldProtoName:  string(field.Desc.Name()),
 			Type:            resolveInterfaceType(imports, field, "T"),
+			ReadOnly:        isOutputOnlyField(field),
 		})
 	}
 	return transportType

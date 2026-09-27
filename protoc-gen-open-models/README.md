@@ -367,6 +367,24 @@ Supported constraint fields:
 - **Descriptive**: `title`, `description`, `format`, `type`
 - **Defaults**: `default` (applied during Model construction when no init data is provided)
 
+### Field Behavior (`google.api.field_behavior`)
+
+[AIP-203](https://google.aip.dev/203) field behaviors are honoured as well:
+
+| Behavior | Effect |
+|---|---|
+| `OUTPUT_ONLY`, `IDENTIFIER` | Like `read_only`: the field is in the model's readonly list, has the `read_only` constraint, and is `readonly` in the `I*` and `T*` interfaces (still optional there). |
+| `REQUIRED` | The `required` constraint, so the validator reports an empty value. Unlike the `required` list of `openapi.v3.schema`, the model does **not** emit the field when it is empty: a partial body, like a PATCH with an `update_mask`, stays partial. A field of a oneof is never required. |
+
+The interfaces keep every field optional (`?`), required or not.
+
+```protobuf
+message Cube {
+  string id = 1 [(google.api.field_behavior) = IDENTIFIER];     // readonly id?: string
+  string description = 3 [(google.api.field_behavior) = REQUIRED]; // constraints: { required: true }
+}
+```
+
 ### Message-Level Annotations (`openapi.v3.schema`)
 
 Mark specific fields as required at the message level:

@@ -21,6 +21,7 @@ type LiteralFields struct {
 	FieldName       string // name of the field in interface types and models
 	FieldProtoName  string // name of the field in transport types
 	Type            string
+	ReadOnly        bool // output only: openapi read_only, OUTPUT_ONLY or IDENTIFIER
 }
 
 var LiteralTypeTemplate = `/**
@@ -32,7 +33,7 @@ export interface I{{.Name}} {
     /**{{range $i, $commentLine := .LeadingComments}}
      * {{$commentLine}} {{end}}
      */{{end}}
-    {{.FieldName}}?: {{.Type}};{{if .TrailingComment}} // {{.TrailingComment}}{{end}}{{end}}
+    {{if .ReadOnly}}readonly {{end}}{{.FieldName}}?: {{.Type}};{{if .TrailingComment}} // {{.TrailingComment}}{{end}}{{end}}
 }
 `
 
@@ -65,6 +66,7 @@ func prepareLiteralType(msg *protogen.Message, imports ImportMap) LiteralType {
 			FieldName:       field.Desc.JSONName(),
 			FieldProtoName:  string(field.Desc.Name()),
 			Type:            resolveInterfaceType(imports, field, "I"),
+			ReadOnly:        isOutputOnlyField(field),
 		})
 	}
 	return literalType

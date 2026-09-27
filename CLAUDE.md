@@ -70,7 +70,7 @@ go test -coverprofile=coverage.out ./... && go tool cover -func=coverage.out
 
 ### protoc-gen-open-models
 
-Uses `bufbuild/protoplugin` framework. Entry point: `main.go` → `generator.GenerateAll()`.
+Uses `google.golang.org/protobuf/compiler/protogen`. Entry point: `main.go` → `generator.GenerateAll()`.
 
 **Two-pass generation** (`pkg/generator/generator.go`):
 1. First pass builds global registries: `allTypes`, `allEnums`, `projectFiles`
@@ -83,7 +83,7 @@ Uses `bufbuild/protoplugin` framework. Entry point: `main.go` → `generator.Gen
 
 **Type resolution**: `typeResolver.go` handles Literal/Transport mappings; `modelTypeResolver.go` handles Model runtime types (`STRING`, `INT32`, `ARRAY<>`, `MAP<>`, `RECURSION<>`, etc.). Both use global registries to compute relative import paths.
 
-**Source info**: `pkg/sourceinfo/` extracts comments and OpenAPI v3 annotations from proto descriptors.
+**Options**: `pkg/generator/extensions.go` extracts the HTTP rule, OpenAPI v3 annotations and `google.api.field_behavior` from proto descriptors; comments come from protogen.
 
 ### protoc-gen-om-jsonschema
 

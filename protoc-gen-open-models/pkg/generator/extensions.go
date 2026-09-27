@@ -2,6 +2,7 @@ package generator
 
 import (
 	"fmt"
+	"slices"
 
 	openapi_v3 "github.com/google/gnostic/openapiv3"
 	options "google.golang.org/genproto/googleapis/api/annotations"
@@ -40,6 +41,36 @@ func ExtractOpenApiFieldOptions(field *protogen.Field) (*openapi_v3.Schema, erro
 		return nil, fmt.Errorf("extension is %T; want an OpenApi Property", ext)
 	}
 	return schema, nil
+}
+
+// ExtractFieldBehaviors returns the google.api.field_behavior values of a field, nil when it has none.
+func ExtractFieldBehaviors(field *protogen.Field) []options.FieldBehavior {
+	opts, ok := field.Desc.Options().(*descriptorpb.FieldOptions)
+	if !ok || opts == nil || !proto.HasExtension(opts, options.E_FieldBehavior) {
+		return nil
+	}
+	behaviors, _ := proto.GetExtension(opts, options.E_FieldBehavior).([]options.FieldBehavior)
+	return behaviors
+}
+
+// isOutputOnlyField reports whether a client cannot set the field: openapi read_only, or
+// google.api.field_behavior OUTPUT_ONLY or IDENTIFIER.
+func isOutputOnlyField(field *protogen.Field) bool {
+	if props, _ := ExtractOpenApiFieldOptions(field); props != nil && props.ReadOnly {
+		return true
+	}
+	return slices.ContainsFunc(ExtractFieldBehaviors(field), func(b options.FieldBehavior) bool {
+		return b == options.FieldBehavior_OUTPUT_ONLY || b == options.FieldBehavior_IDENTIFIER
+	})
+}
+
+// isRequiredField reports whether the field is (google.api.field_behavior) = REQUIRED. A field of
+// a real oneof never is: only one field of its group can be set.
+func isRequiredField(field *protogen.Field) bool {
+	if oneof := field.Desc.ContainingOneof(); oneof != nil && !oneof.IsSynthetic() {
+		return false
+	}
+	return slices.Contains(ExtractFieldBehaviors(field), options.FieldBehavior_REQUIRED)
 }
 
 func ExtractOpenApiMessageOptions(msg *protogen.Message) (*openapi_v3.Schema, error) {
