@@ -400,6 +400,17 @@ message Account {
 }
 ```
 
+> **Caution:** the model sends every field of this list, **even when it is empty**. That puts
+> zero values into every body the model produces, partial ones included: a PATCH changing one
+> field also sends `""`, `0` or `false` for each field listed here. Behind grpc-gateway, a PATCH
+> without an explicit `update_mask` takes every field in the body as a change, so those zeros
+> overwrite stored values, and a server validating the request rejects them against their
+> constraints.
+>
+> To mark a field a client has to provide, prefer `(google.api.field_behavior) = REQUIRED`
+> (see *Field Behavior*): it is a validation constraint and does not change what is sent. Use
+> this list only for fields that really have to be on the wire in every body.
+
 ## Reserved Word Handling
 
 TypeScript class names that collide with built-in globals are automatically prefixed with `X`:
