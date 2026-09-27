@@ -1921,3 +1921,271 @@ func checkRefsHavePrefix(t *testing.T, fileName string, obj map[string]interface
 		}
 	}
 }
+
+// generateInline runs protoc with the plugin over testdata/inline and returns the parsed
+// schema files by name.
+func generateInline(t *testing.T, opt string) map[string]map[string]interface{} {
+	t.Helper()
+	if _, err := exec.LookPath("protoc"); err != nil {
+		t.Skip("protoc not found in PATH")
+	}
+
+	tmpDir := t.TempDir()
+	pluginPath := filepath.Join(tmpDir, "protoc-gen-om-jsonschema")
+	if output, err := exec.Command("go", "build", "-o", pluginPath, ".").CombinedOutput(); err != nil {
+		t.Fatalf("failed to build plugin: %v\n%s", err, output)
+	}
+
+	outDir := filepath.Join(tmpDir, "schema")
+	if err := os.MkdirAll(outDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	args := []string{
+		"--plugin=protoc-gen-om-jsonschema=" + pluginPath,
+		"-I./proto_dependencies",
+		"-I./testdata",
+		"--om-jsonschema_out=" + outDir,
+	}
+	if opt != "" {
+		args = append(args, "--om-jsonschema_opt="+opt)
+	}
+	args = append(args, "./testdata/inline/inline.proto")
+	if output, err := exec.Command("protoc", args...).CombinedOutput(); err != nil {
+		t.Fatalf("protoc failed: %v\n%s", err, output)
+	}
+
+	result := make(map[string]map[string]interface{})
+	entries, err := os.ReadDir(outDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, e := range entries {
+		data, err := os.ReadFile(filepath.Join(outDir, e.Name()))
+		if err != nil {
+			t.Fatal(err)
+		}
+		var schema map[string]interface{}
+		if err := json.Unmarshal(data, &schema); err != nil {
+			t.Fatalf("%s is not valid JSON: %v", e.Name(), err)
+		}
+		result[e.Name()] = schema
+	}
+	return result
+}
+
+// at walks a parsed schema along the given keys.
+func at(t *testing.T, v interface{}, keys ...string) interface{} {
+	t.Helper()
+	for _, k := range keys {
+		m, ok := v.(map[string]interface{})
+		if !ok {
+			t.Fatalf("expected an object before %q in %v", k, keys)
+		}
+		v = m[k]
+	}
+	return v
+}
+
+// TestDefaultModeUnchangedByNewOptions checks the defaults still reference other files and
+// keep read-only fields and the UNSPECIFIED value, now also marking OUTPUT_ONLY as readOnly.
+func TestDefaultModeUnchangedByNewOptions(t *testing.T) {
+	schemas := generateInline(t, "")
+	box := schemas["inline.v1.Box"]
+
+	if ref := at(t, box, "properties", "colour", "$ref"); ref != "inline.v1.Colour" {
+		t.Errorf("colour $ref = %v", ref)
+	}
+	if ref := at(t, box, "properties", "trims", "items", "$ref"); ref != "inline.v1.Colour" {
+		t.Errorf("trims items $ref = %v", ref)
+	}
+	if at(t, box, "properties", "id") == nil {
+		t.Error("id should be present without skip_read_only")
+	}
+	if ro := at(t, box, "properties", "etag", "readOnly"); ro != true {
+		t.Errorf("OUTPUT_ONLY etag readOnly = %v, want true", ro)
+	}
+	if ml := at(t, box, "properties", "displayName", "maxLength"); ml != float64(63) {
+		t.Errorf("displayName maxLength = %v, want 63", ml)
+	}
+	if enum := at(t, schemas["inline.v1.Shape"], "enum").([]interface{}); len(enum) != 3 {
+		t.Errorf("Shape enum = %v, want 3 values", enum)
+	}
+}
+
+// TestInlineRefsOption checks nested messages and enums are inlined with their field
+// comment, and recursion ends in "#" for the root and $defs for any other message.
+func TestInlineRefsOption(t *testing.T) {
+	schemas := generateInline(t, "inline_refs")
+	box := schemas["inline.v1.Box"]
+
+	colour := at(t, box, "properties", "colour").(map[string]interface{})
+	if colour["$ref"] != nil || colour["type"] != "object" {
+		t.Errorf("colour should be inlined, got %v", colour)
+	}
+	if colour["description"] != "the colour of the box" {
+		t.Errorf("colour description = %v, want the field comment", colour["description"])
+	}
+	if max := at(t, colour, "properties", "red", "maximum"); max != float64(255) {
+		t.Errorf("inlined red maximum = %v", max)
+	}
+	if at(t, box, "properties", "trims", "items", "type") != "object" {
+		t.Error("repeated message items should be inlined")
+	}
+	if at(t, box, "properties", "palette", "additionalProperties", "type") != "object" {
+		t.Error("map message values should be inlined")
+	}
+	if at(t, box, "properties", "shape", "type") != "string" || at(t, box, "properties", "shape", "enum") == nil {
+		t.Error("enum field should be inlined")
+	}
+	if box["$defs"] != nil {
+		t.Error("Box has no recursion, $defs should be absent")
+	}
+
+	node := schemas["inline.v1.Node"]
+	if ref := at(t, node, "properties", "children", "items", "$ref"); ref != "#" {
+		t.Errorf("Node children items $ref = %v, want #", ref)
+	}
+
+	tree := schemas["inline.v1.Tree"]
+	if ref := at(t, tree, "properties", "root", "$ref"); ref != "#/$defs/inline.v1.Node" {
+		t.Errorf("Tree root $ref = %v", ref)
+	}
+	if ref := at(t, tree, "properties", "spare", "$ref"); ref != "#/$defs/inline.v1.Node" {
+		t.Errorf("Tree spare $ref = %v", ref)
+	}
+	if ref := at(t, tree, "$defs", "inline.v1.Node", "properties", "children", "items", "$ref"); ref != "#/$defs/inline.v1.Node" {
+		t.Errorf("$defs Node children $ref = %v", ref)
+	}
+}
+
+// TestSkipReadOnlyOption checks readOnly, OUTPUT_ONLY and IDENTIFIER fields are left out.
+func TestSkipReadOnlyOption(t *testing.T) {
+	box := generateInline(t, "skip_read_only")["inline.v1.Box"]
+	props := at(t, box, "properties").(map[string]interface{})
+	for _, name := range []string{"id", "etag"} {
+		if props[name] != nil {
+			t.Errorf("%s should be skipped", name)
+		}
+	}
+	if props["displayName"] == nil {
+		t.Error("displayName should be kept")
+	}
+}
+
+// TestSkipUnspecifiedEnumOption checks the zero _UNSPECIFIED value is dropped.
+func TestSkipUnspecifiedEnumOption(t *testing.T) {
+	enum := at(t, generateInline(t, "skip_unspecified_enum")["inline.v1.Shape"], "enum").([]interface{})
+	if len(enum) != 2 || enum[0] != "SHAPE_ROUND" {
+		t.Errorf("Shape enum = %v, want [SHAPE_ROUND SHAPE_SQUARE]", enum)
+	}
+}
+
+// TestFieldBehaviorsFromRaw checks packed and unpacked encodings of extension 1052.
+func TestFieldBehaviorsFromRaw(t *testing.T) {
+	// tag for field 1052: (1052 << 3) | wireType, as varint
+	unpacked := []byte{0xe0, 0x41, 0x03, 0xe0, 0x41, 0x08} // wire type 0: OUTPUT_ONLY, IDENTIFIER
+	packed := []byte{0xe2, 0x41, 0x02, 0x03, 0x08}         // wire type 2: [OUTPUT_ONLY, IDENTIFIER]
+
+	for name, data := range map[string][]byte{"unpacked": unpacked, "packed": packed} {
+		got := fieldBehaviorsFromRaw(data)
+		if len(got) != 2 || got[0] != 3 || got[1] != 8 {
+			t.Errorf("%s: got %v, want [3 8]", name, got)
+		}
+	}
+	if fieldBehaviorsFromRaw(nil) != nil {
+		t.Error("empty options should yield no behaviors")
+	}
+}
+
+// TestWellKnownTypesAsJSON checks well-known types are described in their JSON form, in the
+// default mode as well as with inline_refs.
+func TestWellKnownTypesAsJSON(t *testing.T) {
+	for _, opt := range []string{"", "inline_refs"} {
+		stamped := generateInline(t, opt)["inline.v1.Stamped"]
+		props := at(t, stamped, "properties").(map[string]interface{})
+		want := map[string]map[string]interface{}{
+			"created":  {"type": "string", "format": "date-time", "description": "when it was created"},
+			"ratio":    {"type": "number", "description": "a ratio"},
+			"big":      {"type": "string"},
+			"extra":    {"type": "object"},
+			"wait":     {"type": "string", "description": "how long to wait | A duration in seconds with an s suffix, like 3.5s."},
+			"mask":     {"type": "string"},
+			"anything": {"description": "anything"},
+		}
+		for name, fields := range want {
+			for k, v := range fields {
+				if got := at(t, props, name, k); got != v {
+					t.Errorf("[%s] %s.%s = %v, want %v", opt, name, k, got, v)
+				}
+			}
+		}
+		if at(t, props, "anything", "type") != nil {
+			t.Errorf("[%s] Value should have no type", opt)
+		}
+		if at(t, props, "times", "items", "format") != "date-time" {
+			t.Errorf("[%s] repeated Timestamp items should be date-time strings", opt)
+		}
+	}
+}
+
+// TestRequiredFromFieldBehavior checks REQUIRED fields are required, except in a oneof.
+func TestRequiredFromFieldBehavior(t *testing.T) {
+	required := at(t, generateInline(t, "")["inline.v1.Stamped"], "required").([]interface{})
+	if len(required) != 1 || required[0] != "must" {
+		t.Errorf("required = %v, want [must]", required)
+	}
+}
+
+// TestLargeRepeatedMessagesGoToDefs checks a repeated message over defs_min_size is moved to
+// $defs, the first use included, while a small one stays inline at every use.
+func TestLargeRepeatedMessagesGoToDefs(t *testing.T) {
+	order := generateInline(t, "inline_refs,defs_min_size=300")["inline.v1.Order"]
+
+	if ref := at(t, order, "properties", "billing", "$ref"); ref != "#/$defs/inline.v1.Address" {
+		t.Errorf("billing (first use) $ref = %v", ref)
+	}
+	if d := at(t, order, "properties", "billing", "description"); d != "where the invoice goes" {
+		t.Errorf("billing keeps its field comment, got %v", d)
+	}
+	if ref := at(t, order, "properties", "shipping", "$ref"); ref != "#/$defs/inline.v1.Address" {
+		t.Errorf("shipping $ref = %v", ref)
+	}
+	if ref := at(t, order, "properties", "others", "items", "$ref"); ref != "#/$defs/inline.v1.Address" {
+		t.Errorf("others items $ref = %v", ref)
+	}
+	if at(t, order, "$defs", "inline.v1.Address", "properties", "city") == nil {
+		t.Error("$defs should hold Address")
+	}
+	if d := at(t, order, "$defs", "inline.v1.Address", "description"); d != "Address is a mid-size message, used several times by OrderAddress" {
+		t.Errorf("$defs Address keeps the type comment, got %v", d)
+	}
+	for _, name := range []string{"wrapping", "ribbon"} {
+		if at(t, order, "properties", name, "type") != "object" {
+			t.Errorf("small Colour should stay inline at %s", name)
+		}
+	}
+
+	never := generateInline(t, "inline_refs,defs_min_size=0")["inline.v1.Order"]
+	if never["$defs"] != nil {
+		t.Error("defs_min_size=0 should never move messages to $defs")
+	}
+}
+
+// TestFanOutStaysSmall checks a message graph that doubles per level does not grow
+// exponentially with the default defs_min_size.
+func TestFanOutStaysSmall(t *testing.T) {
+	size := func(opt string) int {
+		data, err := json.Marshal(generateInline(t, opt)["inline.v1.Fan0"])
+		if err != nil {
+			t.Fatal(err)
+		}
+		return len(data)
+	}
+	unbounded, bounded := size("inline_refs,defs_min_size=0"), size("inline_refs")
+	if unbounded < 30000 {
+		t.Fatalf("fixture should blow up without defs, got only %d bytes", unbounded)
+	}
+	if bounded > 12000 {
+		t.Errorf("with defs the schema is %d bytes (unbounded %d), want at most 12000", bounded, unbounded)
+	}
+}

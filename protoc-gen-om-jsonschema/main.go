@@ -18,6 +18,12 @@
 //   - exclude_packages: Semicolon-separated list of packages to exclude (e.g., "google.api;openapi.v3")
 //   - exclude_messages: Semicolon-separated list of messages to exclude (e.g., "mypackage.Internal")
 //   - ref_prefix:    URI prefix for $id and $ref values (e.g., "https://example.com/schemas/")
+//   - inline_refs:   Emit self-contained schemas: message and enum fields are inlined instead
+//     of referencing other schema files, recursive messages go to $defs
+//   - skip_read_only: Leave out fields that cannot be sent (readOnly, OUTPUT_ONLY, IDENTIFIER)
+//   - skip_unspecified_enum: Leave out the zero *_UNSPECIFIED value of enums
+//   - defs_min_size: With inline_refs, a message used more than once whose compact JSON
+//     schema has at least this many bytes goes to $defs (default 3072, 0 = never)
 package main
 
 import (
@@ -26,6 +32,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strconv"
 	"strings"
 
 	openapi "github.com/google/gnostic/openapiv3"
@@ -75,10 +82,37 @@ var (
 	// Usage: --om-jsonschema_opt=ref_prefix=https://example.com/schemas/
 	refPrefix = ""
 
+	// inlineRefs makes every schema file self-contained, for consumers that cannot resolve
+	// references to other files, like the parameters of an AI tool.
+	// When false (default): message and enum fields are {"$ref": "package.Type"}.
+	// When true: they are inlined. A recursive message is emitted once under $defs and
+	// referenced as "#/$defs/package.Type", the root message itself as "#".
+	inlineRefs = false
+
+	// skipReadOnly leaves out fields a client cannot send: openapi readOnly, and
+	// google.api.field_behavior OUTPUT_ONLY or IDENTIFIER. Useful for input schemas.
+	// When false (default): OUTPUT_ONLY fields are marked readOnly: true instead.
+	skipReadOnly = false
+
+	// skipUnspecifiedEnum leaves out the zero value of an enum when its name ends in
+	// _UNSPECIFIED, the proto3 "no value" that is never a meaningful choice.
+	skipUnspecifiedEnum = false
+
+	// defsMinSize bounds the size of inline_refs schemas. A message used a second time in the
+	// same schema whose inlined schema is at least this many bytes of compact JSON is moved to
+	// $defs and referenced from every use. Smaller messages stay inline everywhere, which is
+	// easier for AI systems to follow. Without it, messages shared along many paths are copied
+	// at every use, which grows exponentially in densely linked packages.
+	// 0 disables it. Default: 3072.
+	defsMinSize = defaultDefsMinSize
+
 	// Parsed exclusion lists (populated from the string options above)
 	excludedPackageSet map[string]bool
 	excludedMessageSet map[string]bool
 )
+
+// defaultDefsMinSize is the default of defsMinSize, in bytes of compact JSON.
+const defaultDefsMinSize = 3072
 
 // JSONSchema represents a JSON Schema document following the 2020-12 draft specification.
 // This struct contains the subset of JSON Schema keywords needed to represent protobuf types.
@@ -126,6 +160,22 @@ type JSONSchema struct {
 	// ReadOnly indicates the field is output-only (from openapi.v3.property annotation)
 	ReadOnly *bool `json:"readOnly,omitempty"`
 
+	// MaxLength is the maximum string length (from openapi.v3.property annotation)
+	MaxLength *int64 `json:"maxLength,omitempty"`
+
+	// MinLength is the minimum string length (from openapi.v3.property annotation)
+	MinLength *int64 `json:"minLength,omitempty"`
+
+	// Pattern is a regular expression the string must match (from openapi.v3.property annotation)
+	Pattern string `json:"pattern,omitempty"`
+
+	// Format names the string format, like "date-time" for google.protobuf.Timestamp
+	Format string `json:"format,omitempty"`
+
+	// formatHint marks a description that explains the JSON form of a well-known type. It is
+	// kept after the field comment instead of being replaced by it (see withFieldInfo).
+	formatHint bool
+
 	// AdditionalProperties defines the schema for map values when using AI-friendly map format.
 	// Can be bool (true to allow any additional properties) or *JSONSchema for typed values.
 	// Used for: map<K,V> fields (default mode) and google.protobuf.Any (default mode).
@@ -136,6 +186,10 @@ type JSONSchema struct {
 	// AI systems should set exactly ONE field from each group.
 	// Only populated when strictOneof is false (default).
 	XOneof []OneofGroup `json:"x-oneof,omitempty"`
+
+	// Defs holds the recursive message types of a schema generated with inline_refs,
+	// referenced as "#/$defs/package.Type".
+	Defs map[string]*JSONSchema `json:"$defs,omitempty"`
 }
 
 // OneofGroup represents a protobuf oneof group with its name and member fields.
@@ -221,6 +275,10 @@ func processRequest(data []byte, output io.Writer) error {
 	excludeMessages = ""
 	fileExtension = ""
 	refPrefix = ""
+	inlineRefs = false
+	skipReadOnly = false
+	skipUnspecifiedEnum = false
+	defsMinSize = defaultDefsMinSize
 	excludedPackageSet = nil
 	excludedMessageSet = nil
 
@@ -295,6 +353,10 @@ func runAsPlugin() {
 	flags.StringVar(&excludeMessages, "exclude_messages", "", "Semicolon-separated list of messages to exclude from generation")
 	flags.StringVar(&fileExtension, "file_extension", "", "File extension to append to generated schema filenames (e.g., .json)")
 	flags.StringVar(&refPrefix, "ref_prefix", "", "URI prefix for $id and $ref values (e.g., https://example.com/schemas/)")
+	flags.BoolVar(&inlineRefs, "inline_refs", false, "Inline message and enum fields instead of referencing other schema files")
+	flags.BoolVar(&skipReadOnly, "skip_read_only", false, "Leave out readOnly, OUTPUT_ONLY and IDENTIFIER fields")
+	flags.BoolVar(&skipUnspecifiedEnum, "skip_unspecified_enum", false, "Leave out the zero *_UNSPECIFIED enum value")
+	flags.IntVar(&defsMinSize, "defs_min_size", defaultDefsMinSize, "With inline_refs, move messages used more than once to $defs from this compact JSON size in bytes (0 = never)")
 
 	// Configure and run the protoc plugin using the already-parsed request
 	opts := protogen.Options{ParamFunc: func(name, value string) error {
@@ -358,6 +420,16 @@ func applyOption(name, value string) {
 		fileExtension = value
 	case "ref_prefix":
 		refPrefix = value
+	case "inline_refs":
+		inlineRefs = value != "false"
+	case "skip_read_only":
+		skipReadOnly = value != "false"
+	case "skip_unspecified_enum":
+		skipUnspecifiedEnum = value != "false"
+	case "defs_min_size":
+		if n, err := strconv.Atoi(value); err == nil {
+			defsMinSize = n
+		}
 	}
 }
 
@@ -469,68 +541,19 @@ func generateMessageSchema(gen *protogen.Plugin, file *protogen.File, msg *proto
 		return generateAnySchema(gen, fullName, msg)
 	}
 
-	// Create the base schema structure for this message.
-	// All messages are represented as JSON Schema "object" types.
-	schema := &JSONSchema{
-		Schema:     "https://json-schema.org/draft/2020-12/schema",
-		ID:         refPrefix + fullName + fileExtension,
-		Type:       "object",
-		Properties: make(map[string]*JSONSchema),
+	// In inline_refs mode the fields of this message expand into the schema itself,
+	// tracked by a context that detects recursion. Otherwise ctx stays nil and fields
+	// reference other schema files.
+	var ctx *schemaContext
+	if inlineRefs {
+		ctx = newSchemaContext(fullName)
 	}
 
-	// Extract the message description from proto comments.
-	// Leading comments (above the message) are preferred over trailing comments.
-	// The message name is appended to help identify the type in the description.
-	msgDesc := extractDescription(msg.Comments)
-	if msgDesc != "" {
-		schema.Description = msgDesc + string(msg.Desc.Name())
-	}
-
-	// Check for required fields specified via openapi.v3.schema annotation.
-	// This allows proto authors to mark certain fields as required in the JSON Schema.
-	schema.Required = getRequiredFields(msg)
-
-	// Convert each field in the message to a JSON Schema property.
-	// Field names are converted to their JSON representation (typically camelCase).
-	for _, field := range msg.Fields {
-		fieldSchema := convertField(field)
-		jsonName := field.Desc.JSONName()
-		schema.Properties[jsonName] = fieldSchema
-	}
-
-	// Handle oneof groups - mutually exclusive field sets.
-	// In protobuf, setting one field in a oneof automatically clears the others.
-	// We need to communicate this constraint to AI systems to prevent data loss.
-	oneofGroups := getOneofGroups(msg)
-	if len(oneofGroups) > 0 {
-		if strictOneof {
-			// Strict mode: Add only a concise description hint.
-			// Format: "ONEOF[groupName]: Set exactly ONE of [field1, field2, field3]"
-			// This is more compact but less machine-readable than x-oneof.
-			var oneofHints []string
-			for _, group := range oneofGroups {
-				oneofHints = append(oneofHints, fmt.Sprintf("ONEOF[%s]: Set exactly ONE of [%s]", group.Name, strings.Join(group.Fields, ", ")))
-			}
-			hint := strings.Join(oneofHints, ". ")
-			if schema.Description != "" {
-				schema.Description = schema.Description + " | " + hint
-			} else {
-				schema.Description = hint
-			}
-		} else {
-			// Default mode: Use x-oneof extension with a detailed explanation.
-			// The x-oneof array provides machine-readable information about oneof groups.
-			// Each entry has "name" (the oneof group name) and "fields" (the field names).
-			// The IMPORTANT hint explains how to use x-oneof for AI systems.
-			schema.XOneof = oneofGroups
-
-			oneofHint := "IMPORTANT: This message contains mutually exclusive field groups defined in x-oneof. Each x-oneof entry has a 'name' (the group name) and 'fields' (the field names). You must set exactly ONE field from each group, not multiple. Setting multiple fields from the same group will cause data loss."
-			if schema.Description != "" {
-				schema.Description = schema.Description + " | " + oneofHint
-			} else {
-				schema.Description = oneofHint
-			}
-		}
+	schema := buildMessageSchema(msg, ctx)
+	schema.Schema = "https://json-schema.org/draft/2020-12/schema"
+	schema.ID = refPrefix + fullName + fileExtension
+	if ctx != nil && len(ctx.defs) > 0 {
+		schema.Defs = ctx.defs
 	}
 
 	// Create the output file with the fully qualified message name.
@@ -564,6 +587,140 @@ func generateMessageSchema(gen *protogen.Plugin, file *protogen.File, msg *proto
 	}
 
 	return nil
+}
+
+// buildMessageSchema converts a message into a JSON Schema object: its description,
+// properties, required fields and oneof groups. The result carries no $schema or $id,
+// so it can be written as a file of its own or inlined into another schema.
+//
+// Parameters:
+//   - msg: The message descriptor to convert
+//   - ctx: The inline_refs expansion state, or nil to reference nested types by $ref
+func buildMessageSchema(msg *protogen.Message, ctx *schemaContext) *JSONSchema {
+	// Create the base schema structure for this message.
+	// All messages are represented as JSON Schema "object" types.
+	schema := &JSONSchema{
+		Type:       "object",
+		Properties: make(map[string]*JSONSchema),
+	}
+
+	// Extract the message description from proto comments.
+	// Leading comments (above the message) are preferred over trailing comments.
+	// The message name is appended to help identify the type in the description.
+	msgDesc := extractDescription(msg.Comments)
+	if msgDesc != "" {
+		schema.Description = msgDesc + string(msg.Desc.Name())
+	}
+
+	// Check for required fields specified via openapi.v3.schema annotation.
+	// This allows proto authors to mark certain fields as required in the JSON Schema.
+	// With skip_read_only, fields a client cannot send are left out, and so are their
+	// entries in required and in the oneof groups.
+	skipped := make(map[string]bool)
+	for _, field := range msg.Fields {
+		if skipReadOnly && isReadOnlyField(field) {
+			skipped[field.Desc.JSONName()] = true
+		}
+	}
+	for _, name := range requiredFieldNames(msg) {
+		if !skipped[name] {
+			schema.Required = append(schema.Required, name)
+		}
+	}
+
+	// Convert each field in the message to a JSON Schema property.
+	// Field names are converted to their JSON representation (typically camelCase).
+	for _, field := range msg.Fields {
+		jsonName := field.Desc.JSONName()
+		if skipped[jsonName] {
+			continue
+		}
+		schema.Properties[jsonName] = convertFieldWith(field, ctx)
+	}
+
+	// Handle oneof groups - mutually exclusive field sets.
+	// In protobuf, setting one field in a oneof automatically clears the others.
+	// We need to communicate this constraint to AI systems to prevent data loss.
+	oneofGroups := withoutSkippedFields(getOneofGroups(msg), skipped)
+	if len(oneofGroups) > 0 {
+		if strictOneof {
+			// Strict mode: Add only a concise description hint.
+			// Format: "ONEOF[groupName]: Set exactly ONE of [field1, field2, field3]"
+			// This is more compact but less machine-readable than x-oneof.
+			var oneofHints []string
+			for _, group := range oneofGroups {
+				oneofHints = append(oneofHints, fmt.Sprintf("ONEOF[%s]: Set exactly ONE of [%s]", group.Name, strings.Join(group.Fields, ", ")))
+			}
+			hint := strings.Join(oneofHints, ". ")
+			if schema.Description != "" {
+				schema.Description = schema.Description + " | " + hint
+			} else {
+				schema.Description = hint
+			}
+		} else {
+			// Default mode: Use x-oneof extension with a detailed explanation.
+			// The x-oneof array provides machine-readable information about oneof groups.
+			// Each entry has "name" (the oneof group name) and "fields" (the field names).
+			// The IMPORTANT hint explains how to use x-oneof for AI systems.
+			schema.XOneof = oneofGroups
+
+			oneofHint := "IMPORTANT: This message contains mutually exclusive field groups defined in x-oneof. Each x-oneof entry has a 'name' (the group name) and 'fields' (the field names). You must set exactly ONE field from each group, not multiple. Setting multiple fields from the same group will cause data loss."
+			if schema.Description != "" {
+				schema.Description = schema.Description + " | " + oneofHint
+			} else {
+				schema.Description = oneofHint
+			}
+		}
+	}
+
+	return schema
+}
+
+// requiredFieldNames merges the required fields of the openapi.v3.schema annotation with the
+// fields marked (google.api.field_behavior) = REQUIRED, in field order after the annotated ones.
+// A field of a real oneof is never required, only one of its group can be set.
+func requiredFieldNames(msg *protogen.Message) []string {
+	required := getRequiredFields(msg)
+	seen := make(map[string]bool, len(required))
+	for _, name := range required {
+		seen[name] = true
+	}
+	for _, field := range msg.Fields {
+		name := field.Desc.JSONName()
+		if seen[name] || (field.Oneof != nil && !field.Oneof.Desc.IsSynthetic()) {
+			continue
+		}
+		opts, ok := field.Desc.Options().(*descriptorpb.FieldOptions)
+		if !ok || opts == nil {
+			continue
+		}
+		raw, _ := proto.Marshal(opts)
+		if hasFieldBehavior(raw, fieldBehaviorRequired) {
+			required = append(required, name)
+			seen[name] = true
+		}
+	}
+	return required
+}
+
+// withoutSkippedFields drops skipped fields from the oneof groups, and groups left empty.
+func withoutSkippedFields(groups []OneofGroup, skipped map[string]bool) []OneofGroup {
+	if len(skipped) == 0 {
+		return groups
+	}
+	var result []OneofGroup
+	for _, group := range groups {
+		var fields []string
+		for _, f := range group.Fields {
+			if !skipped[f] {
+				fields = append(fields, f)
+			}
+		}
+		if len(fields) > 0 {
+			result = append(result, OneofGroup{Name: group.Name, Fields: fields})
+		}
+	}
+	return result
 }
 
 // getOneofGroups extracts oneof field groups from a message.
@@ -635,12 +792,29 @@ func getOneofGroups(msg *protogen.Message) []OneofGroup {
 //   - fullName: The fully qualified name ("google.protobuf.Any")
 //   - msg: The Any message descriptor (unused but kept for consistency)
 func generateAnySchema(gen *protogen.Plugin, fullName string, msg *protogen.Message) error {
+	schema := buildAnySchema()
+	schema.Schema = "https://json-schema.org/draft/2020-12/schema"
+	schema.ID = refPrefix + fullName + fileExtension
+
+	// Write the schema file
+	outputFile := gen.NewGeneratedFile(fullName+fileExtension, "")
+
+	data, err := json.MarshalIndent(schema, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal schema for %s: %w", fullName, err)
+	}
+
+	outputFile.Write(data)
+
+	return nil
+}
+
+// buildAnySchema returns the AI-friendly google.protobuf.Any schema, without $schema or $id.
+func buildAnySchema() *JSONSchema {
 	// Allow any additional properties since Any can contain any message type.
 	additionalProps := true
 
 	schema := &JSONSchema{
-		Schema:               "https://json-schema.org/draft/2020-12/schema",
-		ID:                   refPrefix + fullName + fileExtension,
 		Type:                 "object",
 		Description:          "A container for any message type. The @type field identifies which message type is contained, and the remaining fields are the actual message data. Set @type to the $id of the target schema and include all fields from that schema.",
 		Properties:           make(map[string]*JSONSchema),
@@ -655,17 +829,7 @@ func generateAnySchema(gen *protogen.Plugin, fullName string, msg *protogen.Mess
 		Description: "The $id of the schema that describes the additional fields in this object.",
 	}
 
-	// Write the schema file
-	outputFile := gen.NewGeneratedFile(fullName+fileExtension, "")
-
-	data, err := json.MarshalIndent(schema, "", "  ")
-	if err != nil {
-		return fmt.Errorf("failed to marshal schema for %s: %w", fullName, err)
-	}
-
-	outputFile.Write(data)
-
-	return nil
+	return schema
 }
 
 // generateEnumSchema creates a JSON Schema file for a protobuf enum type.
@@ -700,23 +864,9 @@ func generateEnumSchema(gen *protogen.Plugin, file *protogen.File, enum *protoge
 		return nil
 	}
 
-	schema := &JSONSchema{
-		Schema: "https://json-schema.org/draft/2020-12/schema",
-		ID:     refPrefix + fullName + fileExtension,
-		Type:   "string",
-	}
-
-	// Extract the enum description from proto comments.
-	enumDesc := extractDescription(enum.Comments)
-	if enumDesc != "" {
-		schema.Description = enumDesc
-	}
-
-	// Add all enum value names to the allowed values list.
-	// We use the proto name (e.g., "ACTIVE") not the numeric value.
-	for _, value := range enum.Values {
-		schema.Enum = append(schema.Enum, string(value.Desc.Name()))
-	}
+	schema := buildEnumSchema(enum)
+	schema.Schema = "https://json-schema.org/draft/2020-12/schema"
+	schema.ID = refPrefix + fullName + fileExtension
 
 	// Write the schema file
 	filename := fullName + fileExtension
@@ -730,6 +880,270 @@ func generateEnumSchema(gen *protogen.Plugin, file *protogen.File, enum *protoge
 	outputFile.Write(data)
 
 	return nil
+}
+
+// buildEnumSchema converts an enum into a JSON Schema string type listing its values,
+// without $schema or $id, so it can be written as a file or inlined.
+func buildEnumSchema(enum *protogen.Enum) *JSONSchema {
+	schema := &JSONSchema{
+		Type: "string",
+	}
+
+	// Extract the enum description from proto comments.
+	enumDesc := extractDescription(enum.Comments)
+	if enumDesc != "" {
+		schema.Description = enumDesc
+	}
+
+	// Add all enum value names to the allowed values list.
+	// We use the proto name (e.g., "ACTIVE") not the numeric value.
+	for _, value := range enum.Values {
+		name := string(value.Desc.Name())
+		if skipUnspecifiedEnum && value.Desc.Number() == 0 && strings.HasSuffix(name, "_UNSPECIFIED") {
+			continue
+		}
+		schema.Enum = append(schema.Enum, name)
+	}
+
+	return schema
+}
+
+// schemaContext is the state of one inline_refs expansion, for the schema file of one
+// root message. A nil *schemaContext stands for the default mode, where message and enum
+// fields reference their own schema files.
+type schemaContext struct {
+	// root is the full name of the message the schema file is written for.
+	root string
+	// visiting holds the messages currently being expanded, to detect recursion.
+	visiting map[string]bool
+	// recursive marks messages found to contain themselves; they are emitted into defs.
+	recursive map[string]bool
+	// defs are the recursive messages and the large repeated ones, written under $defs of the
+	// root schema.
+	defs map[string]*JSONSchema
+	// firstUse is where each message was inlined the first time, so that it can be turned into
+	// a $ref once a second use shows the message belongs in defs.
+	firstUse map[string]*inlinedUse
+	// inlineOnly holds the messages found too small for defs, inlined at every use.
+	inlineOnly map[string]bool
+}
+
+// inlinedUse is the first place a message was inlined.
+type inlinedUse struct {
+	// at is the schema placed into the document; the field's own comment and constraints
+	// may have been merged into it since.
+	at *JSONSchema
+	// body is the message schema as built, before any field information was merged in.
+	body JSONSchema
+}
+
+// newSchemaContext starts an inline_refs expansion for the root message.
+func newSchemaContext(root string) *schemaContext {
+	return &schemaContext{
+		root:       root,
+		visiting:   map[string]bool{root: true},
+		recursive:  make(map[string]bool),
+		defs:       make(map[string]*JSONSchema),
+		firstUse:   make(map[string]*inlinedUse),
+		inlineOnly: make(map[string]bool),
+	}
+}
+
+// messageSchema returns the schema a field of the given message type points to:
+// a $ref to its schema file in default mode, the inlined message with inline_refs.
+//
+// With inline_refs, a message met again while it is still being expanded is recursive.
+// The root is then referenced as "#", any other message as "#/$defs/<full name>", and
+// once its expansion is done that message moves into defs, where every further use
+// references it too.
+func (ctx *schemaContext) messageSchema(msg *protogen.Message) *JSONSchema {
+	name := string(msg.Desc.FullName())
+	if ctx == nil {
+		return &JSONSchema{Ref: refPrefix + name + fileExtension}
+	}
+
+	if name == "google.protobuf.Any" && !strictAny {
+		return buildAnySchema()
+	}
+	if name == ctx.root {
+		return &JSONSchema{Ref: "#"}
+	}
+	if _, ok := ctx.defs[name]; ok {
+		return &JSONSchema{Ref: "#/$defs/" + name}
+	}
+	if ctx.visiting[name] {
+		ctx.recursive[name] = true
+		return &JSONSchema{Ref: "#/$defs/" + name}
+	}
+
+	// A second use of a message decides whether it is large enough for defs. If so, the first
+	// use is rewritten into a reference in place, and this and every later use reference it too.
+	if first, ok := ctx.firstUse[name]; ok && !ctx.inlineOnly[name] {
+		if ctx.moveToDefs(name, first) {
+			return &JSONSchema{Ref: "#/$defs/" + name}
+		}
+		ctx.inlineOnly[name] = true
+	}
+
+	ctx.visiting[name] = true
+	schema := buildMessageSchema(msg, ctx)
+	delete(ctx.visiting, name)
+
+	if ctx.recursive[name] {
+		ctx.defs[name] = schema
+		return &JSONSchema{Ref: "#/$defs/" + name}
+	}
+	if _, seen := ctx.firstUse[name]; !seen {
+		ctx.firstUse[name] = &inlinedUse{at: schema, body: *schema}
+	}
+	return schema
+}
+
+// moveToDefs moves a message inlined once into defs when its schema has at least defsMinSize
+// bytes of compact JSON, the form an AI system is sent. The first use becomes a $ref that
+// keeps what the field said about it. Reports whether the message moved.
+func (ctx *schemaContext) moveToDefs(name string, first *inlinedUse) bool {
+	if defsMinSize <= 0 {
+		return false
+	}
+	body := first.body
+	data, err := json.Marshal(&body)
+	if err != nil || len(data) < defsMinSize {
+		return false
+	}
+
+	ctx.defs[name] = &body
+	at := first.at
+	ref := JSONSchema{Ref: "#/$defs/" + name, ReadOnly: at.ReadOnly, Default: at.Default}
+	if at.Description != body.Description {
+		ref.Description = at.Description
+	}
+	*at = ref
+	return true
+}
+
+// enumSchema returns the schema a field of the given enum type points to:
+// a $ref to its schema file in default mode, the inlined enum with inline_refs.
+func (ctx *schemaContext) enumSchema(enum *protogen.Enum) *JSONSchema {
+	if ctx == nil {
+		return &JSONSchema{Ref: refPrefix + string(enum.Desc.FullName()) + fileExtension}
+	}
+	return buildEnumSchema(enum)
+}
+
+// wellKnownSchema returns the schema of a google.protobuf well-known type in its JSON form,
+// which differs from its message structure: a Timestamp is an RFC 3339 string, not
+// {seconds, nanos}, a FloatValue a plain number, a Struct any JSON object. Returns nil for any
+// other type. Any keeps its own handling (see buildAnySchema).
+func wellKnownSchema(fullName string) *JSONSchema {
+	switch fullName {
+	case "google.protobuf.Timestamp":
+		return &JSONSchema{Type: "string", Format: "date-time"}
+	case "google.protobuf.Duration":
+		return &JSONSchema{Type: "string", Pattern: `^-?[0-9]+(\.[0-9]+)?s$`, Description: "A duration in seconds with an s suffix, like 3.5s.", formatHint: true}
+	case "google.protobuf.DoubleValue", "google.protobuf.FloatValue":
+		return &JSONSchema{Type: "number"}
+	case "google.protobuf.Int32Value":
+		return &JSONSchema{Type: "integer"}
+	case "google.protobuf.UInt32Value":
+		zero := float64(0)
+		return &JSONSchema{Type: "integer", Minimum: &zero}
+	case "google.protobuf.Int64Value", "google.protobuf.UInt64Value":
+		// 64-bit integers are strings in the protobuf JSON mapping
+		return &JSONSchema{Type: "string", Pattern: `^-?[0-9]+$`}
+	case "google.protobuf.BoolValue":
+		return &JSONSchema{Type: "boolean"}
+	case "google.protobuf.StringValue", "google.protobuf.BytesValue":
+		return &JSONSchema{Type: "string"}
+	case "google.protobuf.FieldMask":
+		return &JSONSchema{Type: "string", Description: "Comma separated field paths in camelCase, like displayName,cube.length.", formatHint: true}
+	case "google.protobuf.Struct", "google.protobuf.Empty":
+		return &JSONSchema{Type: "object"}
+	case "google.protobuf.ListValue":
+		return &JSONSchema{Type: "array", Items: &JSONSchema{}}
+	case "google.protobuf.Value":
+		// any JSON value: no type
+		return &JSONSchema{}
+	case "google.protobuf.NullValue":
+		return &JSONSchema{Type: "null"}
+	}
+	return nil
+}
+
+// usesWellKnownJSON reports whether the fields of a message map well-known types to their JSON
+// form. The google.protobuf types themselves keep describing their message structure.
+func usesWellKnownJSON(field *protogen.Field) bool {
+	return field.Parent == nil || field.Parent.Desc.ParentFile().Package() != "google.protobuf"
+}
+
+// fieldMessageSchema is the schema a message typed field (or its items or map values) points
+// to: the JSON form of a well-known type, or the message referenced or inlined.
+func fieldMessageSchema(field *protogen.Field, msg *protogen.Message, ctx *schemaContext) *JSONSchema {
+	if usesWellKnownJSON(field) {
+		if wk := wellKnownSchema(string(msg.Desc.FullName())); wk != nil {
+			return wk
+		}
+	}
+	return ctx.messageSchema(msg)
+}
+
+// fieldEnumSchema is fieldMessageSchema for enum typed fields (NullValue is well-known).
+func fieldEnumSchema(field *protogen.Field, enum *protogen.Enum, ctx *schemaContext) *JSONSchema {
+	if usesWellKnownJSON(field) {
+		if wk := wellKnownSchema(string(enum.Desc.FullName())); wk != nil {
+			return wk
+		}
+	}
+	return ctx.enumSchema(enum)
+}
+
+// withFieldInfo puts what the field itself says - its comment and openapi constraints -
+// onto the schema of its type. The field comment wins over the type comment, since it
+// says what this particular use of the type means.
+func withFieldInfo(typeSchema, field *JSONSchema) *JSONSchema {
+	if field.Description != "" {
+		if typeSchema.formatHint {
+			typeSchema.Description = field.Description + " | " + typeSchema.Description
+		} else {
+			typeSchema.Description = field.Description
+		}
+	}
+	if field.ReadOnly != nil {
+		typeSchema.ReadOnly = field.ReadOnly
+	}
+	if field.Default != nil {
+		typeSchema.Default = field.Default
+	}
+	if field.Maximum != nil {
+		typeSchema.Maximum = field.Maximum
+	}
+	if field.Minimum != nil {
+		typeSchema.Minimum = field.Minimum
+	}
+	if field.MaxLength != nil {
+		typeSchema.MaxLength = field.MaxLength
+	}
+	if field.MinLength != nil {
+		typeSchema.MinLength = field.MinLength
+	}
+	if field.Pattern != "" {
+		typeSchema.Pattern = field.Pattern
+	}
+	return typeSchema
+}
+
+// isReadOnlyField reports whether a client cannot send the field: openapi readOnly, or
+// google.api.field_behavior OUTPUT_ONLY or IDENTIFIER.
+func isReadOnlyField(field *protogen.Field) bool {
+	opts, ok := field.Desc.Options().(*descriptorpb.FieldOptions)
+	if !ok || opts == nil {
+		return false
+	}
+	if prop, ok := proto.GetExtension(opts, openapi.E_Property).(*openapi.Schema); ok && prop != nil && prop.ReadOnly {
+		return true
+	}
+	raw, _ := proto.Marshal(opts)
+	return hasFieldBehavior(raw, fieldBehaviorOutputOnly) || hasFieldBehavior(raw, fieldBehaviorIdentifier)
 }
 
 // convertField transforms a protobuf field into a JSON Schema definition.
@@ -749,6 +1163,12 @@ func generateEnumSchema(gen *protogen.Plugin, file *protogen.File, enum *protoge
 //
 // Returns the JSON Schema representation of this field.
 func convertField(field *protogen.Field) *JSONSchema {
+	return convertFieldWith(field, nil)
+}
+
+// convertFieldWith is convertField with an inline_refs context: when ctx is set, message
+// and enum types are inlined instead of referenced (see schemaContext.messageSchema).
+func convertFieldWith(field *protogen.Field, ctx *schemaContext) *JSONSchema {
 	schema := &JSONSchema{}
 
 	// Extract the field description from proto comments.
@@ -779,15 +1199,11 @@ func convertField(field *protogen.Field) *JSONSchema {
 
 		// Set additionalProperties based on the value type
 		if valueField.Message != nil {
-			// Map value is a message type - reference it
-			schema.AdditionalProperties = &JSONSchema{
-				Ref: refPrefix + string(valueField.Message.Desc.FullName()) + fileExtension,
-			}
+			// Map value is a message type - reference or inline it
+			schema.AdditionalProperties = fieldMessageSchema(field, valueField.Message, ctx)
 		} else if valueField.Enum != nil {
-			// Map value is an enum type - reference it
-			schema.AdditionalProperties = &JSONSchema{
-				Ref: refPrefix + string(valueField.Enum.Desc.FullName()) + fileExtension,
-			}
+			// Map value is an enum type - reference or inline it
+			schema.AdditionalProperties = fieldEnumSchema(field, valueField.Enum, ctx)
 		} else {
 			// Map value is a scalar type - inline it
 			schema.AdditionalProperties = &JSONSchema{
@@ -807,15 +1223,15 @@ func convertField(field *protogen.Field) *JSONSchema {
 	//   {"type": "array", "items": {"type": "integer"}}
 	if field.Desc.IsList() {
 		schema.Type = "array"
-		itemSchema := &JSONSchema{}
+		var itemSchema *JSONSchema
 
 		// Set the items schema based on the element type
 		if field.Message != nil {
-			itemSchema.Ref = refPrefix + string(field.Message.Desc.FullName()) + fileExtension
+			itemSchema = fieldMessageSchema(field, field.Message, ctx)
 		} else if field.Enum != nil {
-			itemSchema.Ref = refPrefix + string(field.Enum.Desc.FullName()) + fileExtension
+			itemSchema = fieldEnumSchema(field, field.Enum, ctx)
 		} else {
-			itemSchema.Type = protoKindToJSONType(field.Desc.Kind())
+			itemSchema = &JSONSchema{Type: protoKindToJSONType(field.Desc.Kind())}
 		}
 
 		schema.Items = itemSchema
@@ -828,15 +1244,13 @@ func convertField(field *protogen.Field) *JSONSchema {
 	// Output for MyMessage field:
 	//   {"$ref": "package.MyMessage"}
 	if field.Message != nil {
-		schema.Ref = refPrefix + string(field.Message.Desc.FullName()) + fileExtension
-		return schema
+		return withFieldInfo(fieldMessageSchema(field, field.Message, ctx), schema)
 	}
 
 	// Handle singular enum-typed fields.
 	// These reference the enum schema by its $id.
 	if field.Enum != nil {
-		schema.Ref = refPrefix + string(field.Enum.Desc.FullName()) + fileExtension
-		return schema
+		return withFieldInfo(fieldEnumSchema(field, field.Enum, ctx), schema)
 	}
 
 	// Handle scalar types (int32, string, bool, float, bytes, etc.).
@@ -1003,6 +1417,12 @@ func applyOpenAPIPropertyOptions(field *protogen.Field, schema *JSONSchema) {
 	// the standard proto.GetExtension API.
 	optBytes, _ := proto.Marshal(opts)
 
+	// google.api.field_behavior OUTPUT_ONLY means the same as openapi readOnly.
+	if hasFieldBehavior(optBytes, fieldBehaviorOutputOnly) {
+		readOnly := true
+		schema.ReadOnly = &readOnly
+	}
+
 	// Try to get the openapi.v3.property extension
 	propExt := proto.GetExtension(opts, openapi.E_Property)
 	if propExt == nil {
@@ -1032,6 +1452,20 @@ func applyOpenAPIPropertyOptions(field *protogen.Field, schema *JSONSchema) {
 
 	if hasMin {
 		schema.Minimum = &prop.Minimum
+	}
+
+	// String length and pattern constraints. Zero means "not set" here: a maxLength of 0
+	// would allow only the empty string, which is never what a proto author means.
+	if prop.MaxLength > 0 {
+		maxLength := prop.MaxLength
+		schema.MaxLength = &maxLength
+	}
+	if prop.MinLength > 0 {
+		minLength := prop.MinLength
+		schema.MinLength = &minLength
+	}
+	if prop.Pattern != "" {
+		schema.Pattern = prop.Pattern
 	}
 
 	// Workaround for proto3 zero value limitation:

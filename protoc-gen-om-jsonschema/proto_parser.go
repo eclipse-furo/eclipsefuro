@@ -226,3 +226,92 @@ func skipField(data []byte, pos int, wireType uint64) int {
 		return -1
 	}
 }
+
+// google.api.FieldBehavior values this plugin acts on (see google/api/field_behavior.proto).
+const (
+	fieldBehaviorRequired   = 2
+	fieldBehaviorOutputOnly = 3
+	fieldBehaviorIdentifier = 8
+)
+
+// fieldBehaviorsFromRaw returns the google.api.field_behavior values found in raw
+// FieldOptions bytes.
+//
+// The extension is read from the wire rather than with proto.GetExtension, so the plugin
+// does not need to depend on the googleapis Go package for one repeated enum. The field
+// may be encoded packed (wire type 2) or as one varint per value (wire type 0).
+//
+// Parameters:
+//   - data: Raw marshaled FieldOptions bytes
+//
+// Returns the enum numbers in the order they appear, or nil if the extension is absent.
+func fieldBehaviorsFromRaw(data []byte) []uint64 {
+	// The field number for the google.api.field_behavior extension in FieldOptions.
+	const extFieldBehaviorFieldNum = 1052
+
+	var behaviors []uint64
+	i := 0
+	for i < len(data) {
+		fieldTag, n := decodeVarint(data[i:])
+		if n == 0 {
+			break
+		}
+		i += n
+
+		fieldNum := fieldTag >> 3
+		wireType := fieldTag & 0x7
+
+		if fieldNum != extFieldBehaviorFieldNum {
+			i = skipField(data, i, wireType)
+			if i < 0 {
+				break
+			}
+			continue
+		}
+
+		switch wireType {
+		case 0: // one unpacked value
+			value, n := decodeVarint(data[i:])
+			if n == 0 {
+				return behaviors
+			}
+			behaviors = append(behaviors, value)
+			i += n
+
+		case 2: // packed values
+			length, n := decodeVarint(data[i:])
+			if n == 0 || i+n+int(length) > len(data) {
+				return behaviors
+			}
+			i += n
+			end := i + int(length)
+			for i < end {
+				value, n := decodeVarint(data[i:end])
+				if n == 0 {
+					return behaviors
+				}
+				behaviors = append(behaviors, value)
+				i += n
+			}
+
+		default:
+			i = skipField(data, i, wireType)
+			if i < 0 {
+				return behaviors
+			}
+		}
+	}
+
+	return behaviors
+}
+
+// hasFieldBehavior reports whether the raw FieldOptions bytes carry the given
+// google.api.field_behavior value.
+func hasFieldBehavior(data []byte, behavior uint64) bool {
+	for _, b := range fieldBehaviorsFromRaw(data) {
+		if b == behavior {
+			return true
+		}
+	}
+	return false
+}

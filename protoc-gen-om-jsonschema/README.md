@@ -269,6 +269,93 @@ And `$ref` values like:
 
 **Default:** No prefix (backward compatible). `$id` and `$ref` values are just the fully qualified name plus any file extension.
 
+### inline_refs
+
+By default, message and enum fields reference the schema file of their type with `$ref`. Consumers that cannot resolve references to other files, like the parameters of an AI tool (function calling), need every schema self-contained. With `inline_refs`, message and enum fields are inlined into the schema of the message that uses them.
+
+The field comment replaces the type comment on the inlined schema, since it says what this particular use of the type means. Field constraints (`maximum`, `default`, `readOnly`, ...) are kept on it.
+
+A recursive message cannot be inlined forever. The root message of a file is referenced as `#`, any other recursive message is emitted once under `$defs` and referenced as `#/$defs/<full name>`.
+
+**Proto:**
+```protobuf
+message Tree {
+  // the root node
+  Node root = 1;
+}
+message Node {
+  string label = 1;
+  repeated Node children = 2;
+}
+```
+
+**Output for `Tree`:**
+```json
+{
+  "$id": "Tree",
+  "type": "object",
+  "properties": {
+    "root": { "$ref": "#/$defs/Node", "description": "the root node" }
+  },
+  "$defs": {
+    "Node": {
+      "type": "object",
+      "properties": {
+        "label": { "type": "string" },
+        "children": { "type": "array", "items": { "$ref": "#/$defs/Node" } }
+      }
+    }
+  }
+}
+```
+
+```bash
+protoc \
+  --om-jsonschema_out=./output \
+  --om-jsonschema_opt=inline_refs \
+  your_proto_files.proto
+```
+
+### defs_min_size
+
+With `inline_refs`, a message used in many places is copied at every use. In a densely linked package the copies multiply per level, and a single schema can reach megabytes. `defs_min_size` bounds that: a message used a second time whose inlined schema is at least this many bytes of compact JSON (the size an AI system is sent) moves to `$defs`, and every use, the first included, references it. The field comment stays next to the `$ref`. Smaller messages stay inline everywhere, which is easier for AI systems to follow.
+
+Default: `3072`. `defs_min_size=0` never moves a message to `$defs` (recursive messages still go there).
+
+```bash
+protoc \
+  --om-jsonschema_out=./output \
+  --om-jsonschema_opt=inline_refs,defs_min_size=4096 \
+  your_proto_files.proto
+```
+
+### skip_read_only
+
+Leaves out fields a client cannot send, which are noise in an input schema:
+
+- `(openapi.v3.property) = {read_only: true}`
+- `(google.api.field_behavior) = OUTPUT_ONLY`
+- `(google.api.field_behavior) = IDENTIFIER`
+
+Skipped fields are also removed from `required` and from oneof groups. Without the option, `OUTPUT_ONLY` fields are marked `readOnly: true`, like openapi `read_only`.
+
+### skip_unspecified_enum
+
+Leaves out the zero value of an enum when its name ends in `_UNSPECIFIED`. proto3 requires that value, but it is never a meaningful choice for someone filling in the field.
+
+### Schemas for AI tools
+
+The three options together produce schemas that can be used as the parameters of an AI tool as they are:
+
+```bash
+protoc \
+  --om-jsonschema_out=./output \
+  --om-jsonschema_opt=file_extension=.json,inline_refs,skip_read_only,skip_unspecified_enum \
+  your_proto_files.proto
+```
+
+Size is bounded by `defs_min_size` (on by default).
+
 ### Combining options
 
 Multiple options can be combined with commas:
@@ -435,6 +522,30 @@ This plugin prioritizes **AI readability** over strict JSON Schema validation:
 
 For strict JSON Schema validation, consider using a different tool or extending this plugin.
 
+## Well-Known Types
+
+Fields of google.protobuf well-known types are described in their JSON form, not their message structure, in every mode:
+
+| Type | Schema |
+|---|---|
+| `Timestamp` | `{"type": "string", "format": "date-time"}` (RFC 3339) |
+| `Duration` | string like `"3.5s"` |
+| `DoubleValue`, `FloatValue` | `number` |
+| `Int32Value`, `UInt32Value` | `integer` |
+| `Int64Value`, `UInt64Value` | string of digits (64-bit integers are strings in JSON) |
+| `BoolValue`, `StringValue`, `BytesValue` | `boolean`, `string`, `string` |
+| `FieldMask` | string of comma separated camelCase paths |
+| `Struct`, `Empty` | `object` |
+| `ListValue` | `array` |
+| `Value` | any value (no `type`) |
+| `NullValue` | `null` |
+
+The schema files of the google.protobuf types themselves still describe their messages.
+
+## Field Behavior
+
+`google.api.field_behavior` is honoured: `REQUIRED` fields are added to `required` (except fields of a oneof), `OUTPUT_ONLY` fields get `readOnly: true`, and `skip_read_only` leaves out `OUTPUT_ONLY` and `IDENTIFIER` fields.
+
 ## OpenAPI v3 Annotations
 
 The plugin supports `openapi.v3.property` annotations for additional schema constraints:
@@ -448,6 +559,8 @@ message Example {
   }];
 }
 ```
+
+Supported: `maximum`, `minimum`, `default`, `read_only`, `max_length`, `min_length` and `pattern`. `google.api.field_behavior` `OUTPUT_ONLY` is treated like `read_only`.
 
 ## Known Issue: Proto3 Zero Values
 

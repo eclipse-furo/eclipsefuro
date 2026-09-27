@@ -1,0 +1,138 @@
+syntax = "proto3";
+
+// Fixture for the inline_refs, skip_read_only and skip_unspecified_enum options.
+package inline.v1;
+
+option go_package = "inline/v1;inlinepb";
+
+import "openapiv3/annotations.proto";
+import "google/api/field_behavior.proto";
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/wrappers.proto";
+import "google/protobuf/struct.proto";
+import "google/protobuf/duration.proto";
+import "google/protobuf/field_mask.proto";
+
+// Shape of a box
+enum Shape {
+  // no shape
+  SHAPE_UNSPECIFIED = 0;
+  // round
+  SHAPE_ROUND = 1;
+  // square
+  SHAPE_SQUARE = 2;
+}
+
+// Colour of a box
+message Colour {
+  // red part
+  int32 red = 1 [(openapi.v3.property) = {maximum: 255, format: "positive"}];
+}
+
+// Box is a resource with output-only fields
+message Box {
+  // id of the box
+  string id = 1 [(openapi.v3.property) = {read_only: true}, (google.api.field_behavior) = IDENTIFIER];
+  // name of the box
+  string display_name = 2 [(openapi.v3.property) = {max_length: 63}, (google.api.field_behavior) = OPTIONAL];
+  // computed by the server
+  string etag = 3 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // the colour of the box
+  Colour colour = 4;
+  // the shape of the box
+  Shape shape = 5;
+  // more colours
+  repeated Colour trims = 6;
+  // colours by name
+  map<string, Colour> palette = 7;
+}
+
+// Node refers to itself
+message Node {
+  // label of the node
+  string label = 1;
+  // child nodes
+  repeated Node children = 2;
+}
+
+// Tree holds a recursive message, twice
+message Tree {
+  // the root node
+  Node root = 1;
+  // a second node
+  Node spare = 2;
+}
+
+// Stamped uses well-known types, which must appear in their JSON form
+message Stamped {
+  // when it was created
+  google.protobuf.Timestamp created = 1;
+  // a ratio
+  google.protobuf.FloatValue ratio = 2;
+  // a big number
+  google.protobuf.Int64Value big = 3;
+  // free form data
+  google.protobuf.Struct extra = 4;
+  // anything
+  google.protobuf.Value anything = 5;
+  // several times
+  repeated google.protobuf.Timestamp times = 6;
+  // how long to wait
+  google.protobuf.Duration wait = 7;
+  // which fields
+  google.protobuf.FieldMask mask = 8;
+  // must be sent
+  string must = 9 [(google.api.field_behavior) = REQUIRED];
+  // a choice
+  oneof choice {
+    // first choice
+    string first = 10 [(google.api.field_behavior) = REQUIRED];
+    // second choice
+    string second = 11;
+  }
+}
+
+// Address is a mid-size message, used several times by Order
+message Address {
+  // the street of the address, including the house number and any additions
+  string street = 1;
+  // the postal code of the address, as written in the country of the address
+  string postal_code = 2;
+  // the city or town of the address, without district or county information
+  string city = 3;
+  // the country of the address as an ISO 3166-1 alpha-2 code, like CH or DE
+  string country = 4;
+}
+
+// Order uses Address three times and Colour twice
+message Order {
+  // where the invoice goes
+  Address billing = 1;
+  // where the parcel goes
+  Address shipping = 2;
+  // further addresses
+  repeated Address others = 3;
+  // the colour of the wrapping
+  Colour wrapping = 4;
+  // the colour of the ribbon
+  Colour ribbon = 5;
+}
+
+// Fan0 to Fan8 each use the next level twice, which doubles the inlined size per level
+message Fan0 { Fan1 a = 1; Fan1 b = 2; string note = 3; }
+// level 1
+message Fan1 { Fan2 a = 1; Fan2 b = 2; string note = 3; }
+// level 2
+message Fan2 { Fan3 a = 1; Fan3 b = 2; string note = 3; }
+// level 3
+message Fan3 { Fan4 a = 1; Fan4 b = 2; string note = 3; }
+// level 4
+message Fan4 { Fan5 a = 1; Fan5 b = 2; string note = 3; }
+// level 5
+message Fan5 { Fan6 a = 1; Fan6 b = 2; string note = 3; }
+// level 6
+message Fan6 { Fan7 a = 1; Fan7 b = 2; string note = 3; }
+// level 7
+message Fan7 { Fan8 a = 1; Fan8 b = 2; string note = 3; }
+// level 8
+message Fan8 { string note = 1; string more = 2; }
