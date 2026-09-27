@@ -43,7 +43,7 @@ import (
 	"google.golang.org/protobuf/types/pluginpb"
 )
 
-const version = "1.52.2"
+const version = "1.53.0"
 
 // Plugin options control the output format of the generated schemas.
 // These are set via protoc command line options like --om-jsonschema_opt=strict_any
