@@ -23,7 +23,7 @@
 //   - skip_read_only: Leave out fields that cannot be sent (readOnly, OUTPUT_ONLY, IDENTIFIER)
 //   - skip_unspecified_enum: Leave out the zero *_UNSPECIFIED value of enums
 //   - defs_min_size: With inline_refs, a message used more than once whose compact JSON
-//     schema has at least this many bytes goes to $defs (default 3072, 0 = never)
+//     schema has at least this many bytes goes to $defs (default 2048, 0 = never)
 package main
 
 import (
@@ -103,7 +103,7 @@ var (
 	// $defs and referenced from every use. Smaller messages stay inline everywhere, which is
 	// easier for AI systems to follow. Without it, messages shared along many paths are copied
 	// at every use, which grows exponentially in densely linked packages.
-	// 0 disables it. Default: 3072.
+	// 0 disables it. Default: 2048.
 	defsMinSize = defaultDefsMinSize
 
 	// Parsed exclusion lists (populated from the string options above)
@@ -112,7 +112,7 @@ var (
 )
 
 // defaultDefsMinSize is the default of defsMinSize, in bytes of compact JSON.
-const defaultDefsMinSize = 3072
+const defaultDefsMinSize = 2048
 
 // JSONSchema represents a JSON Schema document following the 2020-12 draft specification.
 // This struct contains the subset of JSON Schema keywords needed to represent protobuf types.

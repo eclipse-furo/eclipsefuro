@@ -320,7 +320,7 @@ protoc \
 
 With `inline_refs`, a message used in many places is copied at every use. In a densely linked package the copies multiply per level, and a single schema can reach megabytes. `defs_min_size` bounds that: a message used a second time whose inlined schema is at least this many bytes of compact JSON (the size an AI system is sent) moves to `$defs`, and every use, the first included, references it. The field comment stays next to the `$ref`. Smaller messages stay inline everywhere, which is easier for AI systems to follow.
 
-Default: `3072`. `defs_min_size=0` never moves a message to `$defs` (recursive messages still go there).
+Default: `2048`. `defs_min_size=0` never moves a message to `$defs` (recursive messages still go there).
 
 ```bash
 protoc \
