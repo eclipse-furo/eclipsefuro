@@ -12,7 +12,7 @@ import (
 	"google.golang.org/protobuf/types/pluginpb"
 )
 
-const version = "1.55.0"
+const version = "1.55.1"
 
 func main() {
 	generator.Version = version
