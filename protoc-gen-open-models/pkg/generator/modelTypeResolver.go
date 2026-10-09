@@ -332,52 +332,20 @@ func resolveModelType(imports ImportMap, field *protogen.Field) (
 	return "UNRECOGNIZED", "UNRECOGNIZED", "UNRECOGNIZED", "UNRECOGNIZED", "", "UNRECOGNIZED"
 }
 
+// isWellKnownType reports whether tn is a well-known type that maps onto an
+// @furo/open-models type (ANY, EMPTY or a primitive wrapper) instead of a generated class.
+// It is an allowlist: every other google.protobuf message, e.g. the descriptor types and
+// the ones newer protoc versions add (FieldOptions.FeatureSupport, ...), is a regular message.
 func isWellKnownType(tn string) bool {
-
-	return strings.HasPrefix(tn, ".google.protobuf.") &&
-		tn != ".google.protobuf.Api" &&
-		tn != ".google.protobuf.Type" &&
-		tn != ".google.protobuf.Descriptor" &&
-		tn != ".google.protobuf.Enum" &&
-		tn != ".google.protobuf.ExtensionRangeOptions" &&
-		tn != ".google.protobuf.ExtensionRangeOptions.Declaration" &&
-		tn != ".google.protobuf.EnumValue" &&
-		tn != ".google.protobuf.EnumValueOptions" &&
-		tn != ".google.protobuf.UninterpretedOption" &&
-		tn != ".google.protobuf.FeatureSet" &&
-		tn != ".google.protobuf.EnumOptions" &&
-		tn != ".google.protobuf.EnumReservedRange" &&
-		tn != ".google.protobuf.FieldOptions" &&
-		tn != ".google.protobuf.FieldOptions.EditionDefault" &&
-		tn != ".google.protobuf.EnumValueDescriptorProto" &&
-		tn != ".google.protobuf.EnumDescriptorProto.EnumReservedRange" &&
-		tn != ".google.protobuf.Mixin" &&
-		tn != ".google.protobuf.SourceCodeInfo.Location" &&
-		tn != ".google.protobuf.Method" &&
-		tn != ".google.protobuf.Option" &&
-		tn != ".google.protobuf.MethodOptions" &&
-		tn != ".google.protobuf.FileOptions" &&
-		tn != ".google.protobuf.Field" &&
-		tn != ".google.protobuf.FeatureSetDefaults.FeatureSetEditionDefault" &&
-		tn != ".google.protobuf.Struct.FieldsEntry" &&
-		tn != ".google.protobuf.ServiceDescriptorProto" &&
-		tn != ".google.protobuf.SourceCodeInfo" &&
-		tn != ".google.protobuf.SourceContext" &&
-		tn != ".google.protobuf.FileDescriptorProto" &&
-		tn != ".google.protobuf.DescriptorProto" &&
-		tn != ".google.protobuf.GeneratedCodeInfo.Annotation" &&
-		tn != ".google.protobuf.EnumDescriptorProto" &&
-		tn != ".google.protobuf.DescriptorProto.ExtensionRange" &&
-		tn != ".google.protobuf.FieldDescriptorProto" &&
-		tn != ".google.protobuf.ExtensionRange" &&
-		tn != ".google.protobuf.UninterpretedOption.NamePart" &&
-		tn != ".google.protobuf.MethodDescriptorProto" &&
-		tn != ".google.protobuf.ServiceOptions" &&
-		tn != ".google.protobuf.OneofOptions" &&
-		tn != ".google.protobuf.MessageOptions" &&
-		tn != ".google.protobuf.OneofDescriptorProto" &&
-		tn != ".google.protobuf.DescriptorProto.ReservedRange" &&
-		tn != ".google.protobuf.Syntax"
+	name, found := strings.CutPrefix(tn, ".google.protobuf.")
+	if !found || strings.Contains(name, ".") {
+		return false
+	}
+	if name == "Any" {
+		return true
+	}
+	_, ok := ModelWellKnownTypesMap[name]
+	return ok
 }
 
 func deepRecursionCheck(typename string) bool {

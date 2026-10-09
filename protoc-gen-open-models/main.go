@@ -15,6 +15,7 @@ import (
 const version = "1.55.0"
 
 func main() {
+	generator.Version = version
 	replayRequest := ""
 	for i, arg := range os.Args[1:] {
 		if arg == "--version" {
